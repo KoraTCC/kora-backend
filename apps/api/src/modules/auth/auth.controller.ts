@@ -21,7 +21,7 @@ import { toUserResponse } from '../users/user.mapper.js';
 import type { User } from '../users/user.entity.js';
 import { AccessTokenGuard, CurrentUser } from './access-token.guard.js';
 import { AuthCookies } from './auth-cookies.service.js';
-import { AuthService } from './auth.service.js';
+import { AuthService, SupersededRefreshError } from './auth.service.js';
 
 @Controller('auth')
 export class AuthController {
@@ -71,7 +71,7 @@ export class AuthController {
       this.cookies.set(res, tokens);
       return { user };
     } catch (error) {
-      this.cookies.clear(res);
+      if (!(error instanceof SupersededRefreshError)) this.cookies.clear(res);
       throw error;
     }
   }

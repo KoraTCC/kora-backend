@@ -84,6 +84,6 @@ O access token dura 15 min. Quando a API responde 401, o front chama esta rota u
 4. **Detecção de reuso**: se chegar um token que já foi rotacionado, alguém tem uma cópia dele. A família inteira é revogada e o evento `REFRESH_REUSE` vai para a auditoria. O ladrão e a vítima precisam entrar de novo, e só a vítima sabe a senha.
 5. Em qualquer falha, os cookies são apagados e a resposta é `401 "Sessão expirada ou inválida."`.
 
-- **Janela de tolerância (10 s)**: duas abas podem renovar ao mesmo tempo com o mesmo token. Um token rotacionado há menos de 10 s é só recusado, sem derrubar a família. A aba que perdeu a corrida já recebe os cookies novos pela outra resposta.
+- **Janela de tolerância (10 s)**: duas abas podem renovar ao mesmo tempo com o mesmo token. Um token rotacionado há menos de 10 s é só recusado, sem derrubar a família. Essa recusa não apaga os cookies: a aba que perdeu a corrida usa os cookies novos que a outra resposta gravou e repete a requisição.
 - Rate limit: 30 renovações/min por IP.
 - **Limitação conhecida**: depois de um reuso, os access tokens já emitidos para a família continuam válidos até vencer (no máximo 15 min). O `AccessTokenGuard` não consulta o banco de sessões, para não pagar uma consulta a cada requisição.

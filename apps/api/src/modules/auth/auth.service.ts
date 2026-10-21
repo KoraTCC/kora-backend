@@ -16,6 +16,16 @@ import { SessionService, type SessionTokens } from './session.service.js';
 
 const INVALID_SESSION = 'Sessão expirada ou inválida.';
 
+/**
+ * Outra requisição acabou de renovar esta sessão. Os cookies novos já foram
+ * enviados por ela, então quem recebe este erro não deve apagá-los.
+ */
+export class SupersededRefreshError extends UnauthorizedException {
+  constructor() {
+    super(INVALID_SESSION);
+  }
+}
+
 export interface AuthResult {
   user: UserResponse;
   tokens: SessionTokens;
@@ -63,6 +73,7 @@ export class AuthService {
         familyId: result.familyId,
       });
     }
+    if (result.status === 'superseded') throw new SupersededRefreshError();
     if (result.status !== 'rotated') {
       throw new UnauthorizedException(INVALID_SESSION);
     }

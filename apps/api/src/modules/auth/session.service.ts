@@ -35,6 +35,8 @@ export const REFRESH_REUSE_GRACE_MS = 10_000;
 export type RotateResult =
   | { status: 'rotated'; userId: string; tokens: SessionTokens }
   | { status: 'reused'; userId: string; familyId: string }
+  /** Rotacionado há pouco por outra requisição (corrida legítima). */
+  | { status: 'superseded' }
   | { status: 'invalid' };
 
 export function hashToken(token: string): string {
@@ -132,8 +134,9 @@ export class SessionService {
     const rotatedRecently =
       token.replacedById !== null &&
       now.getTime() - token.revokedAt!.getTime() < REFRESH_REUSE_GRACE_MS;
-    // Revogado sem sucessor (ex.: logout) ou corrida legítima: só recusa.
-    if (!token.replacedById || rotatedRecently) return { status: 'invalid' };
+    // Revogado sem sucessor (ex.: logout): só recusa.
+    if (!token.replacedById) return { status: 'invalid' };
+    if (rotatedRecently) return { status: 'superseded' };
 
     await manager
       .getRepository(RefreshToken)

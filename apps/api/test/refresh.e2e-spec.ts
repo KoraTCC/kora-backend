@@ -109,7 +109,9 @@ describe('POST /auth/refresh (e2e)', () => {
     const original = await newSession();
     const rotated = cookieValue(await refresh(original).expect(200), RT);
 
-    await refresh(original).expect(401);
+    const loser = await refresh(original).expect(401);
+    // Não apaga os cookies que a outra aba acabou de receber.
+    expect(cookiesOf(loser)).toHaveLength(0);
     await refresh(rotated).expect(200);
   });
 
