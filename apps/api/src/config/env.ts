@@ -24,6 +24,29 @@ const envSchema = z.object({
   FRONTEND_ORIGINS: csv,
   // Quantos proxies confiáveis existem na frente da API (1 = Nginx).
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),
+
+  // Segredos: no mínimo 32 caracteres (gere com `openssl rand -hex 32`).
+  JWT_ACCESS_SECRET: z.string().min(32),
+  // Pepper das senhas: se for perdido, todas as senhas ficam inválidas.
+  PASSWORD_PEPPER: z.string().min(32),
+
+  ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
+  REFRESH_TOKEN_TTL_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(7 * 24 * 3600),
+  // Limite absoluto de uma sessão, mesmo renovando o refresh token.
+  SESSION_MAX_AGE_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(30 * 24 * 3600),
+  // Só desligue em desenvolvimento local sem HTTPS.
+  COOKIE_SECURE: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((value) => value === 'true'),
 });
 
 export type Env = z.infer<typeof envSchema>;
