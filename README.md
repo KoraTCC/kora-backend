@@ -1,6 +1,6 @@
 # Kora — Backend
 
-Backend do TCC **Checkout em Stablecoins**. A proposta de arquitetura está em [`docs/Arquitetura_Backend_TCC_Checkout_Stablecoins.pdf`](docs/Arquitetura_Backend_TCC_Checkout_Stablecoins.pdf).
+Backend do TCC **Checkout em Stablecoins**. A proposta de arquitetura está em [`docs/arquitetura.md`](docs/arquitetura.md).
 
 ## Fluxo de trabalho (gitflow)
 
