@@ -64,6 +64,20 @@ Este documento registra **o que** foi feito na autenticação e **por quê**. El
 - Rate limit: 5 cadastros/min por IP.
 - **Trade-off conhecido**: e-mail duplicado devolve `409`, o que permite descobrir se um e-mail tem conta (enumeração). Evitar isso exige verificação de e-mail no cadastro, que está prevista como evolução. Até lá, o rate limit reduz o abuso.
 
+### Entrar: `POST /auth/login`
+
+1. Valida com zod (`loginSchema`): e-mail normalizado e senha de até 128 caracteres. A política de senha não é aplicada no login, para não revelar regras sobre contas que já existem.
+2. Busca o usuário pelo e-mail. Se não existir, roda o scrypt contra um hash fictício: o tempo de resposta é o mesmo de um e-mail cadastrado.
+3. Conta travada (`locked_until` no futuro) é recusada sem nem testar a senha.
+4. Senha errada soma uma falha com um `UPDATE` atômico (sem corrida entre requisições paralelas). Na **5ª falha seguida** a conta trava por **15 minutos** e o contador zera.
+5. Senha certa: zera falhas e bloqueio, refaz o hash se os parâmetros do scrypt mudaram (`needsRehash`) e, em **uma transação**, abre a sessão e grava `LOGIN_SUCCESS`.
+6. Seta os mesmos cookies do cadastro e devolve `{ user }`.
+
+- E-mail inexistente, senha errada e conta travada devolvem a **mesma** resposta: `401 "E-mail ou senha incorretos."`. Assim o login não serve para descobrir quais e-mails têm conta.
+- Auditoria: `LOGIN_FAILURE` (com `reason`: `unknown_email`, `wrong_password` ou `locked`), `ACCOUNT_LOCKED` e `LOGIN_SUCCESS`.
+- Rate limit: 10 tentativas/min por IP, somado ao bloqueio por conta.
+- **Trade-off conhecido**: quem souber um e-mail pode travar a conta de propósito errando a senha 5 vezes. O bloqueio é curto (15 min) para limitar esse dano.
+
 ### Sessão atual: `GET /auth/me`
 
 O front não consegue ler os cookies (`httpOnly`), então pergunta à API se existe sessão.

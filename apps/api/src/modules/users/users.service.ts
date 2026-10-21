@@ -19,6 +19,47 @@ export class UsersService {
     return this.users.findOneBy({ id });
   }
 
+  /**
+   * Soma uma falha de login de forma atômica. Ao chegar em `maxAttempts`,
+   * trava a conta até `lockedUntil` e zera o contador. Devolve true se travou.
+   */
+  async recordFailedLogin(
+    id: string,
+    maxAttempts: number,
+    lockedUntil: Date,
+  ): Promise<boolean> {
+    const reachesLimit = 'failed_login_count + 1 >= :maxAttempts';
+    const result = await this.users
+      .createQueryBuilder()
+      .update(User)
+      .set({
+        failedLoginCount: () =>
+          `CASE WHEN ${reachesLimit} THEN 0 ELSE failed_login_count + 1 END`,
+        lockedUntil: () =>
+          `CASE WHEN ${reachesLimit} THEN :lockedUntil ELSE locked_until END`,
+      })
+      .where('id = :id', { id })
+      .setParameters({ maxAttempts, lockedUntil })
+      .returning('failed_login_count')
+      .execute();
+    const rows = result.raw as Array<{ failed_login_count: number }>;
+    // O contador só volta a 0 aqui quando a conta acabou de ser travada.
+    return rows[0]?.failed_login_count === 0;
+  }
+
+  async recordSuccessfulLogin(
+    id: string,
+    passwordHash?: string,
+    manager?: EntityManager,
+  ): Promise<void> {
+    const repo = manager?.getRepository(User) ?? this.users;
+    await repo.update(id, {
+      failedLoginCount: 0,
+      lockedUntil: null,
+      ...(passwordHash ? { passwordHash } : {}),
+    });
+  }
+
   async create(
     data: { name: string; email: string; passwordHash: string },
     manager?: EntityManager,

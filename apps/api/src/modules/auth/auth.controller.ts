@@ -1,6 +1,8 @@
 import {
+  loginSchema,
   registerSchema,
   type AuthResponse,
+  type LoginInput,
   type RegisterInput,
 } from '@kora/contracts';
 import {
@@ -74,5 +76,18 @@ export class AuthController {
       if (!(error instanceof SupersededRefreshError)) this.cookies.clear(res);
       throw error;
     }
+  }
+
+  @Post('login')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
+  async login(
+    @Body(new ZodValidationPipe(loginSchema)) body: LoginInput,
+    @ReqMeta() meta: RequestMeta,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponse> {
+    const { user, tokens } = await this.auth.login(body, meta);
+    this.cookies.set(res, tokens);
+    return { user };
   }
 }

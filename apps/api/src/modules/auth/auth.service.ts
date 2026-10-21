@@ -1,4 +1,4 @@
-import type { RegisterInput, UserResponse } from '@kora/contracts';
+import type { LoginInput, RegisterInput, UserResponse } from '@kora/contracts';
 import {
   BadRequestException,
   Injectable,
@@ -26,6 +26,13 @@ export class SupersededRefreshError extends UnauthorizedException {
   }
 }
 
+/** Falhas seguidas que travam a conta, e por quanto tempo. */
+export const MAX_FAILED_LOGINS = 5;
+export const LOCK_DURATION_MS = 15 * 60 * 1000;
+
+/** Mesma resposta para e-mail inexistente, senha errada e conta travada. */
+const INVALID_CREDENTIALS = 'E-mail ou senha incorretos.';
+
 export interface AuthResult {
   user: UserResponse;
   tokens: SessionTokens;
@@ -40,6 +47,8 @@ export class AuthService {
     private readonly sessions: SessionService,
     private readonly audit: AuditService,
   ) {}
+
+  private dummyHash?: Promise<string>;
 
   async register(input: RegisterInput, meta: RequestMeta): Promise<AuthResult> {
     const policyError = checkPasswordPolicy(input.password, input);
@@ -81,5 +90,71 @@ export class AuthService {
     const user = await this.users.findById(result.userId);
     if (!user) throw new UnauthorizedException(INVALID_SESSION);
     return { user: toUserResponse(user), tokens: result.tokens };
+  }
+
+  async login(input: LoginInput, meta: RequestMeta): Promise<AuthResult> {
+    const user = await this.users.findByEmail(input.email);
+
+    if (!user) {
+      // Gasta o mesmo tempo de um scrypt real: o tempo de resposta não
+      // revela se o e-mail tem conta.
+      await this.hasher.verify(input.password, await this.getDummyHash());
+      await this.audit.record(AuditEvent.LoginFailure, meta, null, {
+        reason: 'unknown_email',
+      });
+      throw new UnauthorizedException(INVALID_CREDENTIALS);
+    }
+
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      await this.audit.record(AuditEvent.LoginFailure, meta, user.id, {
+        reason: 'locked',
+      });
+      throw new UnauthorizedException(INVALID_CREDENTIALS);
+    }
+
+    const isValid = await this.hasher.verify(input.password, user.passwordHash);
+    if (!isValid) {
+      await this.handleFailedLogin(user.id, meta);
+      throw new UnauthorizedException(INVALID_CREDENTIALS);
+    }
+
+    const newHash = this.hasher.needsRehash(user.passwordHash)
+      ? await this.hasher.hash(input.password)
+      : undefined;
+
+    return this.dataSource.transaction(async (manager) => {
+      await this.users.recordSuccessfulLogin(user.id, newHash, manager);
+      const tokens = await this.sessions.start(user.id, meta, manager);
+      await this.audit.record(
+        AuditEvent.LoginSuccess,
+        meta,
+        user.id,
+        {},
+        manager,
+      );
+      return { user: toUserResponse(user), tokens };
+    });
+  }
+
+  private async handleFailedLogin(
+    userId: string,
+    meta: RequestMeta,
+  ): Promise<void> {
+    const locked = await this.users.recordFailedLogin(
+      userId,
+      MAX_FAILED_LOGINS,
+      new Date(Date.now() + LOCK_DURATION_MS),
+    );
+    await this.audit.record(AuditEvent.LoginFailure, meta, userId, {
+      reason: 'wrong_password',
+    });
+    if (locked) {
+      await this.audit.record(AuditEvent.AccountLocked, meta, userId);
+    }
+  }
+
+  private getDummyHash(): Promise<string> {
+    this.dummyHash ??= this.hasher.hash('kora-dummy-password-timing');
+    return this.dummyHash;
   }
 }
