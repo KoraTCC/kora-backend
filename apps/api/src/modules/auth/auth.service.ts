@@ -1,5 +1,9 @@
 import type { RegisterInput, UserResponse } from '@kora/contracts';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import type { RequestMeta } from '../../common/request-meta.js';
 import { AuditEvent } from '../audit/audit-log.entity.js';
@@ -9,6 +13,18 @@ import { UsersService } from '../users/users.service.js';
 import { PasswordHasher } from './password-hasher.service.js';
 import { checkPasswordPolicy } from './password-policy.js';
 import { SessionService, type SessionTokens } from './session.service.js';
+
+const INVALID_SESSION = 'Sessão expirada ou inválida.';
+
+/**
+ * Outra requisição acabou de renovar esta sessão. Os cookies novos já foram
+ * enviados por ela, então quem recebe este erro não deve apagá-los.
+ */
+export class SupersededRefreshError extends UnauthorizedException {
+  constructor() {
+    super(INVALID_SESSION);
+  }
+}
 
 export interface AuthResult {
   user: UserResponse;
@@ -46,5 +62,24 @@ export class AuthService {
       await this.audit.record(AuditEvent.Register, meta, user.id, {}, manager);
       return { user: toUserResponse(user), tokens };
     });
+  }
+
+  async refresh(refreshToken: string, meta: RequestMeta): Promise<AuthResult> {
+    if (!refreshToken) throw new UnauthorizedException(INVALID_SESSION);
+
+    const result = await this.sessions.rotate(refreshToken, meta);
+    if (result.status === 'reused') {
+      await this.audit.record(AuditEvent.RefreshReuse, meta, result.userId, {
+        familyId: result.familyId,
+      });
+    }
+    if (result.status === 'superseded') throw new SupersededRefreshError();
+    if (result.status !== 'rotated') {
+      throw new UnauthorizedException(INVALID_SESSION);
+    }
+
+    const user = await this.users.findById(result.userId);
+    if (!user) throw new UnauthorizedException(INVALID_SESSION);
+    return { user: toUserResponse(user), tokens: result.tokens };
   }
 }

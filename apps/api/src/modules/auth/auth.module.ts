@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { ENV, type Env } from '../../config/env.js';
 import { AuditModule } from '../audit/audit.module.js';
 import { UsersModule } from '../users/users.module.js';
+import { AccessTokenGuard } from './access-token.guard.js';
 import { AuthCookies } from './auth-cookies.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
@@ -26,6 +27,12 @@ import { SessionService } from './session.service.js';
     AuditModule,
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthCookies, PasswordHasher, SessionService],
+  providers: [
+    AuthService,
+    AuthCookies,
+    PasswordHasher,
+    SessionService,
+    AccessTokenGuard,
+  ],
 })
 export class AuthModule {}
