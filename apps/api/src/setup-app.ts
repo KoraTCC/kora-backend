@@ -1,6 +1,7 @@
 import type { INestApplication } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
+import type { NextFunction, Request, Response } from 'express';
 import helmet from 'helmet';
 import type { Env } from './config/env.js';
 
@@ -11,6 +12,11 @@ export function setupApp(app: INestApplication, env: Env): void {
   express.disable('x-powered-by');
   app.use(helmet());
   app.use(cookieParser());
+  // Respostas de autenticação nunca devem ficar em cache (navegador ou proxy).
+  app.use('/auth', (_req: Request, res: Response, next: NextFunction) => {
+    res.setHeader('Cache-Control', 'no-store');
+    next();
+  });
   app.enableCors({
     origin: env.FRONTEND_ORIGINS,
     credentials: true,

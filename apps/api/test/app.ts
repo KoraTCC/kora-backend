@@ -26,3 +26,11 @@ export async function createTestApp(): Promise<INestApplication> {
   await dataSource.runMigrations();
   return app;
 }
+
+let ipCounter = 0;
+
+/** IP único por chamada, para os testes não dividirem o mesmo balde de rate limit. */
+export function uniqueIp(): string {
+  ipCounter += 1;
+  return `10.0.${Math.floor(ipCounter / 250)}.${(ipCounter % 250) + 1}`;
+}

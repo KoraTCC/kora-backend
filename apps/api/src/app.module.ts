@@ -7,6 +7,7 @@ import { ConfigModule } from './config/config.module.js';
 import { ENV, type Env } from './config/env.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
+import { AuthModule } from './modules/auth/auth.module.js';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { HealthController } from './health/health.controller.js';
     // Limite global por IP; rotas sensíveis ganham limites próprios.
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     DatabaseModule,
+    AuthModule,
   ],
   controllers: [HealthController],
   providers: [

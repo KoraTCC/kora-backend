@@ -40,4 +40,4 @@ pnpm --filter @kora/api start:dev                               # http://localho
 
 ## Deploy
 
-Veja [`docs/deploy.md`](docs/deploy.md).
+Veja [`docs/deploy.md`](docs/deploy.md). As decisões de segurança da autenticação estão em [`docs/autenticacao.md`](docs/autenticacao.md).
