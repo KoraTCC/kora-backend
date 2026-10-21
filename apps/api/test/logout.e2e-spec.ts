@@ -68,9 +68,9 @@ describe('POST /auth/logout (e2e)', () => {
     expect(events).toHaveLength(1);
 
     const cleared = cookiesOf(res);
-    expect(cleared.some((cookie) => cookie.startsWith(`${ACCESS_COOKIE}=;`))).toBe(
-      true,
-    );
+    expect(
+      cleared.some((cookie) => cookie.startsWith(`${ACCESS_COOKIE}=;`)),
+    ).toBe(true);
     expect(
       cleared.some((cookie) => cookie.startsWith(`${REFRESH_COOKIE}=;`)),
     ).toBe(true);
