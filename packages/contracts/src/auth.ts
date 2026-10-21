@@ -34,6 +34,16 @@ export const registerSchema = z.object({
 });
 export type RegisterInput = z.infer<typeof registerSchema>;
 
+// No login a senha não passa pela política: só limita o tamanho.
+export const loginSchema = z.object({
+  email: emailSchema,
+  password: z
+    .string()
+    .min(1, 'Informe a senha')
+    .max(PASSWORD_MAX_LENGTH, 'Senha inválida'),
+});
+export type LoginInput = z.infer<typeof loginSchema>;
+
 export interface UserResponse {
   id: string;
   name: string;
