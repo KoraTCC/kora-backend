@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: kora
+          POSTGRES_PASSWORD: kora
+          POSTGRES_DB: kora_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U kora -d kora_test"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm exec prettier --check "**/*.{ts,json,yml}"
+      - run: pnpm test
+      - run: pnpm test:e2e
+        env:
+          TEST_DATABASE_URL: postgres://kora:kora@localhost:5432/kora_test
+
+  docker:
+    runs-on: ubuntu-latest
+    needs: check
+    steps:
+      - uses: actions/checkout@v5
+      - name: Build da imagem da API
+        run: docker build -f apps/api/Dockerfile -t kora-api:ci .
