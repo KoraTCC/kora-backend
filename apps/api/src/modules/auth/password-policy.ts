@@ -1,3 +1,5 @@
+import { normalizePassword } from '@kora/contracts';
+
 /**
  * Senhas comuns que passam do tamanho mínimo. As mais comuns de todas são
  * curtas e já caem na regra de 12 caracteres. Num próximo passo dá para
@@ -39,7 +41,7 @@ export function checkPasswordPolicy(
   password: string,
   context: { email: string; name: string },
 ): string | null {
-  const normalized = password.toLowerCase();
+  const normalized = normalizePassword(password).toLowerCase();
   if (COMMON_PASSWORDS.has(normalized) || /^(.)\1+$/.test(normalized)) {
     return 'Essa senha é muito comum. Escolha outra.';
   }

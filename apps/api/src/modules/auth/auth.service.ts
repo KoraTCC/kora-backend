@@ -92,6 +92,17 @@ export class AuthService {
     return { user: toUserResponse(user), tokens: result.tokens };
   }
 
+  async logout(refreshToken: string, meta: RequestMeta): Promise<void> {
+    if (!refreshToken) return;
+
+    const revoked = await this.sessions.revokeFamily(refreshToken);
+    if (!revoked) return;
+
+    await this.audit.record(AuditEvent.Logout, meta, revoked.userId, {
+      familyId: revoked.familyId,
+    });
+  }
+
   async login(input: LoginInput, meta: RequestMeta): Promise<AuthResult> {
     const user = await this.users.findByEmail(input.email);
 

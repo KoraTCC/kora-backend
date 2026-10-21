@@ -1,3 +1,4 @@
+import { normalizePassword } from '@kora/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   createHmac,
@@ -102,7 +103,7 @@ export class PasswordHasher {
    */
   private pepperize(password: string): Buffer {
     return createHmac('sha256', this.pepper)
-      .update(password.normalize('NFKC'))
+      .update(normalizePassword(password))
       .digest();
   }
 }
