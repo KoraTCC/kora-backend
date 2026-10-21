@@ -2,7 +2,12 @@ import { Inject, Injectable } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import type { EntityManager, Repository } from 'typeorm';
+import {
+  DataSource,
+  IsNull,
+  type EntityManager,
+  type Repository,
+} from 'typeorm';
 import type { RequestMeta } from '../../common/request-meta.js';
 import { ENV, type Env } from '../../config/env.js';
 import { RefreshToken } from './refresh-token.entity.js';
@@ -21,6 +26,17 @@ export interface SessionTokens {
   refreshToken: string;
 }
 
+/**
+ * Janela em que reapresentar um refresh recém-rotacionado é tratado como
+ * corrida legítima (duas abas renovando juntas), e não como roubo.
+ */
+export const REFRESH_REUSE_GRACE_MS = 10_000;
+
+export type RotateResult =
+  | { status: 'rotated'; userId: string; tokens: SessionTokens }
+  | { status: 'reused'; userId: string; familyId: string }
+  | { status: 'invalid' };
+
 export function hashToken(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }
@@ -36,6 +52,7 @@ export class SessionService {
     private readonly jwt: JwtService,
     @InjectRepository(RefreshToken)
     private readonly refreshTokens: Repository<RefreshToken>,
+    private readonly dataSource: DataSource,
   ) {}
 
   /** Cria uma sessão nova (nova família de refresh tokens). */
@@ -49,14 +66,82 @@ export class SessionService {
     const sessionExpiresAt = new Date(
       now + this.env.SESSION_MAX_AGE_SECONDS * 1000,
     );
-    const refreshToken = await this.storeRefreshToken(
+    const { token } = await this.storeRefreshToken(
       { userId, familyId, sessionExpiresAt, meta },
       manager,
     );
     return {
       accessToken: await this.signAccessToken({ sub: userId, sid: familyId }),
-      refreshToken,
+      refreshToken: token,
     };
+  }
+
+  /**
+   * Troca um refresh token por um par novo (rotação). O token usado é
+   * revogado e aponta para o sucessor. Reapresentar um token já rotacionado
+   * fora da janela de tolerância indica roubo: a família inteira cai.
+   */
+  rotate(refreshToken: string, meta: RequestMeta): Promise<RotateResult> {
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(RefreshToken);
+      // O lock serializa renovações simultâneas do mesmo token.
+      const current = await repo.findOne({
+        where: { tokenHash: hashToken(refreshToken) },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!current) return { status: 'invalid' };
+
+      const now = new Date();
+      if (current.revokedAt) {
+        return this.handleRevoked(current, now, manager);
+      }
+      if (current.expiresAt <= now || current.sessionExpiresAt <= now) {
+        return { status: 'invalid' };
+      }
+
+      const next = await this.storeRefreshToken(
+        {
+          userId: current.userId,
+          familyId: current.familyId,
+          sessionExpiresAt: current.sessionExpiresAt,
+          meta,
+        },
+        manager,
+      );
+      await repo.update(current.id, { revokedAt: now, replacedById: next.id });
+
+      return {
+        status: 'rotated',
+        userId: current.userId,
+        tokens: {
+          accessToken: await this.signAccessToken({
+            sub: current.userId,
+            sid: current.familyId,
+          }),
+          refreshToken: next.token,
+        },
+      };
+    });
+  }
+
+  private async handleRevoked(
+    token: RefreshToken,
+    now: Date,
+    manager: EntityManager,
+  ): Promise<RotateResult> {
+    const rotatedRecently =
+      token.replacedById !== null &&
+      now.getTime() - token.revokedAt!.getTime() < REFRESH_REUSE_GRACE_MS;
+    // Revogado sem sucessor (ex.: logout) ou corrida legítima: só recusa.
+    if (!token.replacedById || rotatedRecently) return { status: 'invalid' };
+
+    await manager
+      .getRepository(RefreshToken)
+      .update(
+        { familyId: token.familyId, revokedAt: IsNull() },
+        { revokedAt: now },
+      );
+    return { status: 'reused', userId: token.userId, familyId: token.familyId };
   }
 
   /** Valida assinatura, algoritmo, validade, emissor e audiência. */
@@ -87,11 +172,11 @@ export class SessionService {
       meta: RequestMeta;
     },
     manager?: EntityManager,
-  ): Promise<string> {
+  ): Promise<{ id: string; token: string }> {
     const repo = manager?.getRepository(RefreshToken) ?? this.refreshTokens;
     const token = randomBytes(32).toString('base64url');
     const ttlExpiry = Date.now() + this.env.REFRESH_TOKEN_TTL_SECONDS * 1000;
-    await repo.insert({
+    const result = await repo.insert({
       userId: params.userId,
       familyId: params.familyId,
       tokenHash: hashToken(token),
@@ -103,6 +188,6 @@ export class SessionService {
       ip: params.meta.ip,
       userAgent: params.meta.userAgent,
     });
-    return token;
+    return { id: (result.identifiers[0] as { id: string }).id, token };
   }
 }

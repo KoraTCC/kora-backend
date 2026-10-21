@@ -73,4 +73,17 @@ O front não consegue ler os cookies (`httpOnly`), então pergunta à API se exi
 3. Devolve `{ user }`, ou `401 "Sessão expirada ou inválida."` em qualquer falha.
 
 - O guard e o decorator `@CurrentUser()` servem para qualquer rota que exija login.
-- **Limitação atual**: ainda não existe `POST /auth/refresh`. Quando o access token vence (15 min), `/auth/me` responde 401 e o usuário precisa entrar de novo.
+
+### Renovar a sessão: `POST /auth/refresh`
+
+O access token dura 15 min. Quando a API responde 401, o front chama esta rota uma vez e repete a requisição original.
+
+1. Lê o refresh token do cookie (que só viaja para `/auth/*`, com `SameSite=Strict`) e busca o SHA-256 dele no banco, com lock de linha: renovações simultâneas do mesmo token são serializadas.
+2. Token inexistente, vencido ou além do limite absoluto da sessão (30 dias): 401.
+3. **Rotação**: em uma transação, emite um refresh novo na mesma família, revoga o usado (`revoked_at`) e aponta para o sucessor (`replaced_by_id`). Também emite um access token novo.
+4. **Detecção de reuso**: se chegar um token que já foi rotacionado, alguém tem uma cópia dele. A família inteira é revogada e o evento `REFRESH_REUSE` vai para a auditoria. O ladrão e a vítima precisam entrar de novo, e só a vítima sabe a senha.
+5. Em qualquer falha, os cookies são apagados e a resposta é `401 "Sessão expirada ou inválida."`.
+
+- **Janela de tolerância (10 s)**: duas abas podem renovar ao mesmo tempo com o mesmo token. Um token rotacionado há menos de 10 s é só recusado, sem derrubar a família. A aba que perdeu a corrida já recebe os cookies novos pela outra resposta.
+- Rate limit: 30 renovações/min por IP.
+- **Limitação conhecida**: depois de um reuso, os access tokens já emitidos para a família continuam válidos até vencer (no máximo 15 min). O `AccessTokenGuard` não consulta o banco de sessões, para não pagar uma consulta a cada requisição.

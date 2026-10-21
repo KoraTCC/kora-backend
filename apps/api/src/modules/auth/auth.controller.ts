@@ -9,11 +9,12 @@ import {
   Get,
   HttpCode,
   Post,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
 import { Throttle } from '@nestjs/throttler';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { ReqMeta, type RequestMeta } from '../../common/request-meta.js';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe.js';
 import { toUserResponse } from '../users/user.mapper.js';
@@ -47,5 +48,31 @@ export class AuthController {
   @UseGuards(AccessTokenGuard)
   me(@CurrentUser() user: User): AuthResponse {
     return { user: toUserResponse(user) };
+  }
+
+  /**
+   * Renova a sessão com o refresh token (cookie restrito a `/auth`).
+   * Em qualquer falha os cookies são apagados: o front volta ao login.
+   */
+  @Post('refresh')
+  @HttpCode(200)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async refresh(
+    @Req() req: Request,
+    @ReqMeta() meta: RequestMeta,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<AuthResponse> {
+    const token: unknown = req.cookies?.[this.cookies.refreshName];
+    try {
+      const { user, tokens } = await this.auth.refresh(
+        typeof token === 'string' ? token : '',
+        meta,
+      );
+      this.cookies.set(res, tokens);
+      return { user };
+    } catch (error) {
+      this.cookies.clear(res);
+      throw error;
+    }
   }
 }
