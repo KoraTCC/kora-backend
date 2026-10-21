@@ -63,3 +63,14 @@ Este documento registra **o que** foi feito na autenticação e **por quê**. El
 
 - Rate limit: 5 cadastros/min por IP.
 - **Trade-off conhecido**: e-mail duplicado devolve `409`, o que permite descobrir se um e-mail tem conta (enumeração). Evitar isso exige verificação de e-mail no cadastro, que está prevista como evolução. Até lá, o rate limit reduz o abuso.
+
+### Sessão atual: `GET /auth/me`
+
+O front não consegue ler os cookies (`httpOnly`), então pergunta à API se existe sessão.
+
+1. `AccessTokenGuard` lê o cookie de acesso e valida assinatura, algoritmo (fixo em HS256), validade, `iss` e `aud`.
+2. Carrega o usuário e recusa tokens emitidos antes de `password_changed_at`: trocar a senha derruba os access tokens antigos.
+3. Devolve `{ user }`, ou `401 "Sessão expirada ou inválida."` em qualquer falha.
+
+- O guard e o decorator `@CurrentUser()` servem para qualquer rota que exija login.
+- **Limitação atual**: ainda não existe `POST /auth/refresh`. Quando o access token vence (15 min), `/auth/me` responde 401 e o usuário precisa entrar de novo.

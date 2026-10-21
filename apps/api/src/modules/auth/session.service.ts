@@ -59,6 +59,17 @@ export class SessionService {
     };
   }
 
+  /** Valida assinatura, algoritmo, validade, emissor e audiência. */
+  verifyAccessToken(
+    token: string,
+  ): Promise<AccessTokenPayload & { iat: number }> {
+    return this.jwt.verifyAsync(token, {
+      issuer: JWT_ISSUER,
+      audience: JWT_AUDIENCE,
+      algorithms: ['HS256'],
+    });
+  }
+
   signAccessToken(payload: AccessTokenPayload): Promise<string> {
     return this.jwt.signAsync(payload, {
       expiresIn: this.env.ACCESS_TOKEN_TTL_SECONDS,
