@@ -26,6 +26,11 @@ export interface SessionTokens {
   refreshToken: string;
 }
 
+export interface RevokedSession {
+  userId: string;
+  familyId: string;
+}
+
 /**
  * Janela em que reapresentar um refresh recém-rotacionado é tratado como
  * corrida legítima (duas abas renovando juntas), e não como roubo.
@@ -123,6 +128,24 @@ export class SessionService {
           refreshToken: next.token,
         },
       };
+    });
+  }
+
+  /** Revoga todos os refresh tokens ativos da família informada. */
+  revokeFamily(refreshToken: string): Promise<RevokedSession | null> {
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(RefreshToken);
+      const current = await repo.findOne({
+        where: { tokenHash: hashToken(refreshToken) },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!current || current.revokedAt) return null;
+
+      await repo.update(
+        { familyId: current.familyId, revokedAt: IsNull() },
+        { revokedAt: new Date() },
+      );
+      return { userId: current.userId, familyId: current.familyId };
     });
   }
 
