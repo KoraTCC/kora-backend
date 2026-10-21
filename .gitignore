@@ -8,4 +8,4 @@ coverage/
 *.log
 .DS_Store
 *:Zone.Identifier
-infra/nginx/certs/
+infra/docker/certs/

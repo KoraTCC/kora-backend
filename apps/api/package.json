@@ -1,0 +1,62 @@
+{
+  "name": "@kora/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prebuild": "pnpm --filter @kora/contracts build",
+    "build": "nest build",
+    "start": "nest start",
+    "start:dev": "pnpm --filter @kora/contracts build && nest start --watch",
+    "start:prod": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "oxlint --type-aware src/ test/",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "vitest run --config ./vitest.config.e2e.ts",
+    "typeorm": "typeorm -d dist/database/data-source.js",
+    "migration:generate": "pnpm build && typeorm -d dist/database/data-source.js migration:generate",
+    "migration:run": "pnpm build && typeorm -d dist/database/data-source.js migration:run",
+    "migration:revert": "pnpm build && typeorm -d dist/database/data-source.js migration:revert"
+  },
+  "dependencies": {
+    "@kora/contracts": "workspace:*",
+    "@nestjs/common": "^12.2.0",
+    "@nestjs/core": "^12.2.0",
+    "@nestjs/platform-express": "^12.2.0",
+    "@nestjs/throttler": "^6.7.1",
+    "@nestjs/typeorm": "^12.0.2",
+    "cookie-parser": "^1.4.7",
+    "helmet": "^8.3.0",
+    "nestjs-pino": "^5.3.1",
+    "pg": "^8.23.1",
+    "pino": "^10.4.0",
+    "pino-http": "^11.0.0",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "typeorm": "^1.1.2",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^12.0.9",
+    "@nestjs/schematics": "^12.0.9",
+    "@nestjs/testing": "^12.2.0",
+    "@types/cookie-parser": "^1.4.10",
+    "@types/express": "^5.0.6",
+    "@types/node": "^24.19.2",
+    "@types/pg": "^8.23.1",
+    "@types/supertest": "^7.2.1",
+    "@vitest/coverage-v8": "^4.1.12",
+    "oxlint": "^1.89.0",
+    "oxlint-tsgolint": "^7.0.2004",
+    "pino-pretty": "^13.2.0",
+    "source-map-support": "^0.5.21",
+    "supertest": "^7.3.1",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.4",
+    "vitest": "^4.1.12"
+  },
+  "files": [
+    "dist"
+  ]
+}
