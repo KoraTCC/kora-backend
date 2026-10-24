@@ -6,7 +6,7 @@ Este documento registra **o que** foi feito na autenticação e **por quê**. El
 
 | Aspecto               | Decisão                                                                      |
 | --------------------- | ---------------------------------------------------------------------------- |
-| Hash de senha         | scrypt (`node:crypto`) + pepper HMAC-SHA256                                  |
+| Hash de senha         | Argon2id (`node:crypto`) com pepper no parâmetro `secret`                    |
 | Sessão                | JWT de acesso (15 min) + refresh token opaco (7 dias, rotativo)              |
 | Transporte dos tokens | Cookies `httpOnly`, `Secure`, `SameSite`; nunca em `localStorage`            |
 | CSRF                  | `SameSite` + checagem de `Origin` em métodos que alteram estado              |
@@ -15,15 +15,17 @@ Este documento registra **o que** foi feito na autenticação e **por quê**. El
 
 ## Senhas
 
-**Algoritmo: scrypt.** É uma função de derivação de chave *memory-hard*: cada tentativa custa CPU **e** memória, o que encarece ataques com GPU/ASIC. Ela é recomendada pela OWASP como alternativa ao Argon2id e já vem no Node (`crypto.scrypt`), sem dependência nativa.
+**Algoritmo: Argon2id.** Venceu a Password Hashing Competition (2015), é padronizado na RFC 9106 e é a primeira recomendação da OWASP para senhas. É *memory-hard*: cada tentativa custa CPU **e** memória, o que encarece ataques com GPU/ASIC. A variante `id` combina a resistência a ataques de canal lateral do Argon2i com a resistência a GPU do Argon2d. O Node 24.7+ traz Argon2 nativo (`crypto.argon2`), então não há dependência externa nem binário nativo para compilar. bcrypt foi descartado: limita a senha a 72 bytes e não é *memory-hard*.
 
-- Parâmetros: `N=2^15, r=8, p=3`. Fazem parte da tabela da OWASP, usam cerca de 32 MiB por hash e levam cerca de 200 ms. Outra opção da tabela (`N=2^17, r=8, p=1`) usa 128 MiB e limitaria logins simultâneos numa VPS pequena.
+- Parâmetros: `m=19 MiB, t=2, p=1`, a configuração mínima recomendada pela OWASP. Leva cerca de 80 ms por hash e cabe numa VPS de 1 vCPU com vários logins simultâneos.
 - Salt aleatório de 16 bytes por senha, contra rainbow tables e para que senhas iguais não gerem hashes iguais.
-- **Pepper**: antes do scrypt, a senha passa por `HMAC-SHA256(pepper, senha)`. O pepper fica em variável de ambiente e não no banco. Quem vazar só o banco não consegue testar senhas offline.
+- **Pepper**: vai no parâmetro `secret` do próprio Argon2 (RFC 9106, seção 3.1). Fica em variável de ambiente e não no banco: quem vazar só o banco não consegue testar senhas offline.
 - Unicode normalizado (NFKC): a mesma senha digitada em teclados/SOs diferentes gera o mesmo hash.
-- Formato autodescritivo `scrypt$ln=15,r=8,p=3$<salt>$<hash>`. Permite aumentar o custo no futuro e refazer o hash de forma transparente no próximo login (`needsRehash`).
+- Formato PHC padrão: `$argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>`, o mesmo de outras bibliotecas de Argon2. Permite aumentar o custo no futuro e refazer o hash de forma transparente no próximo login (`needsRehash`).
 - Comparação em tempo constante (`timingSafeEqual`).
-- Versão assíncrona do scrypt: roda no threadpool do libuv, sem travar o event loop.
+- Versão assíncrona: roda no threadpool do libuv, sem travar o event loop.
+
+**Migração do scrypt.** As primeiras contas foram criadas com scrypt (`scrypt$ln=15,r=8,p=3$...`). Esses hashes continuam aceitos no login; como `needsRehash` devolve true para eles, o login regrava a senha em Argon2id. É o mesmo mecanismo que serve para subir o custo do Argon2 no futuro. O código do scrypt pode ser removido quando não houver mais nenhum `scrypt$` em `users.password_hash`.
 
 **Política** (NIST SP 800-63B): de 12 a 128 caracteres, sem regras de composição ("precisa ter símbolo"), que só levam a senhas previsíveis. São recusadas senhas comuns, repetitivas, iguais ao nome ou que contenham o e-mail.
 
@@ -57,7 +59,7 @@ Este documento registra **o que** foi feito na autenticação e **por quê**. El
 
 1. Valida com zod (`@kora/contracts`): e-mail normalizado em minúsculas, nome e senha. Campos extras são descartados, o que impede mass assignment.
 2. Aplica a política de senha.
-3. Gera o hash scrypt.
+3. Gera o hash Argon2id.
 4. Em **uma transação**: cria o usuário, abre a sessão (refresh token) e grava `REGISTER` na auditoria.
 5. Seta os cookies e devolve só `{ id, name, email, createdAt }`.
 
@@ -67,10 +69,10 @@ Este documento registra **o que** foi feito na autenticação e **por quê**. El
 ### Entrar: `POST /auth/login`
 
 1. Valida com zod (`loginSchema`): e-mail normalizado e senha de até 128 caracteres. A política de senha não é aplicada no login, para não revelar regras sobre contas que já existem.
-2. Busca o usuário pelo e-mail. Se não existir, roda o scrypt contra um hash fictício: o tempo de resposta é o mesmo de um e-mail cadastrado.
+2. Busca o usuário pelo e-mail. Se não existir, roda o Argon2id contra um hash fictício: o tempo de resposta é o mesmo de um e-mail cadastrado.
 3. Conta travada (`locked_until` no futuro) é recusada sem nem testar a senha.
 4. Senha errada soma uma falha com um `UPDATE` atômico (sem corrida entre requisições paralelas). Na **5ª falha seguida** a conta trava por **15 minutos** e o contador zera.
-5. Senha certa: zera falhas e bloqueio, refaz o hash se os parâmetros do scrypt mudaram (`needsRehash`) e, em **uma transação**, abre a sessão e grava `LOGIN_SUCCESS`.
+5. Senha certa: zera falhas e bloqueio, refaz o hash se ele for scrypt ou se os parâmetros do Argon2id mudaram (`needsRehash`) e, em **uma transação**, abre a sessão e grava `LOGIN_SUCCESS`.
 6. Seta os mesmos cookies do cadastro e devolve `{ user }`.
 
 - E-mail inexistente, senha errada e conta travada devolvem a **mesma** resposta: `401 "E-mail ou senha incorretos."`. Assim o login não serve para descobrir quais e-mails têm conta.

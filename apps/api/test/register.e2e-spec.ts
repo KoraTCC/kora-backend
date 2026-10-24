@@ -69,7 +69,7 @@ describe('POST /auth/register (e2e)', () => {
     expect(refresh).toMatch(/Path=\/auth/);
   });
 
-  it('guarda só hashes no banco: senha com scrypt e refresh token com SHA-256', async () => {
+  it('guarda só hashes no banco: senha com Argon2id e refresh token com SHA-256', async () => {
     const res = await register({ ...valid, email: 'ana@example.com' }).expect(
       201,
     );
@@ -81,7 +81,7 @@ describe('POST /auth/register (e2e)', () => {
     const [user] = await db.query(
       `SELECT password_hash FROM users WHERE email = 'ana@example.com'`,
     );
-    expect(user.password_hash).toMatch(/^scrypt\$ln=15,r=8,p=3\$/);
+    expect(user.password_hash).toMatch(/^\$argon2id\$v=19\$m=19456,t=2,p=1\$/);
     expect(user.password_hash).not.toContain(valid.password);
 
     const tokens = await db.query(
