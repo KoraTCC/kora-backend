@@ -1,0 +1,6 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Necessário para `pnpm deploy` copiar os pacotes do workspace para a imagem Docker.
+injectWorkspacePackages: true
