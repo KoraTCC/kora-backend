@@ -12,7 +12,7 @@ Internet ─▶ Nginx da VPS (80/443, TLS) ─▶ 127.0.0.1:3000 ─▶ containe
 | Nginx + certbot            | Instalados na VPS, fora deste repo   | TLS, redirect HTTP→HTTPS, rotear `app.` e `api.`, repassar o IP real   |
 | `api`                      | `infra/docker/docker-compose.prod.yml` | A aplicação, publicada **só** em `127.0.0.1:${API_PORT}`             |
 | `migrate`                  | idem                                 | Roda `typeorm migration:run` e termina; a API só sobe se ele passar    |
-| `postgres`                 | idem                                 | Banco em rede `internal`, sem porta publicada                          |
+| `postgres`                 | idem                                 | Banco publicado **só** em `127.0.0.1:${POSTGRES_PORT}`, acessível por túnel SSH |
 
 O mesmo Nginx serve o frontend e a API. Por isso ele é configuração da máquina, e não deste repositório.
 
@@ -98,6 +98,21 @@ docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.
 ```
 
 O `migrate` roda de novo a cada `up` e só aplica as migrations pendentes.
+
+## Acessar o banco (DBeaver, pgAdmin...)
+
+O Postgres só escuta em `127.0.0.1` da VPS. Para acessar de fora, use um **túnel SSH**:
+
+| Aba no DBeaver | Campo             | Valor                                         |
+| -------------- | ----------------- | --------------------------------------------- |
+| Main           | Host              | `localhost`                                   |
+| Main           | Port              | `5432` (o `POSTGRES_PORT`)                    |
+| Main           | Database / Username | `kora` / `kora`                             |
+| Main           | Password          | o `POSTGRES_PASSWORD` do `.env` da VPS        |
+| SSH            | Use SSH Tunnel    | marcado                                       |
+| SSH            | Host / Port       | IP da VPS / `22`                              |
+| SSH            | User              | o seu usuário pessoal da VPS                  |
+| SSH            | Authentication    | Public Key, apontando para a sua chave privada |
 
 ## Backup do banco
 
