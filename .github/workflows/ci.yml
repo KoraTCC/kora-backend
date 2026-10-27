@@ -48,5 +48,12 @@ jobs:
     needs: check
     steps:
       - uses: actions/checkout@v5
+      - name: Valida o compose de produção
+        run: |
+          cp infra/docker/.env.example infra/docker/.env
+          docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env config --quiet
+          # A API só pode ser publicada em 127.0.0.1 (o Docker ignora o UFW).
+          docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env config --format json \
+            | jq -e '[.services[].ports // [] | .[] | select(.host_ip != "127.0.0.1")] | length == 0'
       - name: Build da imagem da API
         run: docker build -f apps/api/Dockerfile -t kora-api:ci .
