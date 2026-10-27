@@ -1,123 +1,176 @@
 import { normalizePassword } from '@kora/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import {
+  argon2,
   createHmac,
   randomBytes,
   scrypt,
   timingSafeEqual,
-  type ScryptOptions,
+  type Argon2Parameters,
 } from 'node:crypto';
 import { ENV, type Env } from '../../config/env.js';
 
-interface ScryptParams {
-  /** log2 de N (custo de CPU/memória). */
-  ln: number;
-  r: number;
+interface Argon2Params {
+  /** Memória em KiB. */
+  m: number;
+  /** Iterações (passes). */
+  t: number;
+  /** Paralelismo (lanes). */
   p: number;
 }
 
 /**
- * Parâmetros da OWASP (Password Storage Cheat Sheet) para scrypt:
- * N=2^15, r=8, p=3 usa ~32 MiB por hash. A tabela da OWASP tem opções
- * equivalentes com mais memória (N=2^17, r=8, p=1 usa 128 MiB); esta
- * cabe melhor numa VPS pequena com vários logins ao mesmo tempo.
+ * Argon2id com a configuração mínima da OWASP (Password Storage Cheat
+ * Sheet): 19 MiB de memória, 2 iterações, paralelismo 1. Cerca de 80 ms
+ * por hash; cabe numa VPS de 1 vCPU com vários logins simultâneos.
  */
-export const CURRENT_PARAMS: ScryptParams = { ln: 15, r: 8, p: 3 };
+export const CURRENT_PARAMS: Argon2Params = { m: 19_456, t: 2, p: 1 };
 
-const KEY_LENGTH = 64;
+const ARGON2_VERSION = 19; // 0x13, versão atual do algoritmo
+const TAG_LENGTH = 32;
 const SALT_LENGTH = 16;
-const PREFIX = 'scrypt';
 
-function scryptAsync(
-  password: Buffer,
+function argon2idAsync(
+  password: string,
   salt: Buffer,
-  { ln, r, p }: ScryptParams,
+  secret: Buffer,
+  { m, t, p }: Argon2Params,
+  tagLength: number,
 ): Promise<Buffer> {
-  const N = 2 ** ln;
-  const options: ScryptOptions = { N, r, p, maxmem: 256 * N * r + 1024 * 1024 };
+  const params: Argon2Parameters = {
+    message: password,
+    nonce: salt,
+    secret,
+    memory: m,
+    passes: t,
+    parallelism: p,
+    tagLength,
+  };
   // Versão assíncrona: roda no threadpool do libuv, sem travar o event loop.
   return new Promise((resolve, reject) => {
-    scrypt(password, salt, KEY_LENGTH, options, (err, key) =>
+    argon2('argon2id', params, (err, key) =>
       err ? reject(err) : resolve(key),
     );
   });
 }
 
 /**
- * Hash de senhas com scrypt + pepper.
+ * Hash de senhas com Argon2id + pepper.
  *
- * Formato salvo (autodescritivo, permite trocar parâmetros no futuro):
- *   scrypt$ln=15,r=8,p=3$<salt base64>$<hash base64>
+ * Formato salvo: string PHC padrão, a mesma usada por outras bibliotecas
+ * de Argon2 (o salt e o hash vão em base64 sem padding):
+ *   $argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>
+ *
+ * O pepper vai no parâmetro `secret` do próprio Argon2 (RFC 9106, seção
+ * 3.1), e não dentro da string: quem vazar só o banco não consegue testar
+ * senhas offline.
  */
 @Injectable()
 export class PasswordHasher {
-  private readonly pepper: string;
+  private readonly pepper: Buffer;
 
   constructor(@Inject(ENV) env: Pick<Env, 'PASSWORD_PEPPER'>) {
-    this.pepper = env.PASSWORD_PEPPER;
+    this.pepper = Buffer.from(env.PASSWORD_PEPPER, 'utf8');
   }
 
   async hash(password: string): Promise<string> {
     const salt = randomBytes(SALT_LENGTH);
-    const key = await scryptAsync(
-      this.pepperize(password),
+    const key = await argon2idAsync(
+      normalizePassword(password),
       salt,
+      this.pepper,
       CURRENT_PARAMS,
+      TAG_LENGTH,
     );
-    const { ln, r, p } = CURRENT_PARAMS;
-    return [
-      PREFIX,
-      `ln=${ln},r=${r},p=${p}`,
-      salt.toString('base64'),
-      key.toString('base64'),
-    ].join('$');
+    const { m, t, p } = CURRENT_PARAMS;
+    return `$argon2id$v=${ARGON2_VERSION}$m=${m},t=${t},p=${p}$${b64(salt)}$${b64(key)}`;
   }
 
   async verify(password: string, stored: string): Promise<boolean> {
-    const parsed = parse(stored);
+    if (stored.startsWith(LEGACY_SCRYPT_PREFIX)) {
+      return verifyLegacyScrypt(
+        normalizePassword(password),
+        stored,
+        this.pepper,
+      );
+    }
+    const parsed = parseArgon2(stored);
     if (!parsed) return false;
-    const key = await scryptAsync(
-      this.pepperize(password),
+    const key = await argon2idAsync(
+      normalizePassword(password),
       parsed.salt,
+      this.pepper,
       parsed.params,
+      parsed.key.length,
     );
-    return key.length === parsed.key.length && timingSafeEqual(key, parsed.key);
+    return timingSafeEqual(key, parsed.key);
   }
 
-  /** true quando o hash foi gerado com parâmetros diferentes dos atuais. */
+  /** true quando o hash não é Argon2id com os parâmetros atuais. */
   needsRehash(stored: string): boolean {
-    const parsed = parse(stored);
+    const parsed = parseArgon2(stored);
     if (!parsed) return true;
-    const { ln, r, p } = parsed.params;
+    const { m, t, p } = parsed.params;
     return (
-      ln !== CURRENT_PARAMS.ln ||
-      r !== CURRENT_PARAMS.r ||
-      p !== CURRENT_PARAMS.p
+      m !== CURRENT_PARAMS.m || t !== CURRENT_PARAMS.t || p !== CURRENT_PARAMS.p
     );
-  }
-
-  /**
-   * HMAC-SHA256 com um segredo que fica fora do banco. Quem vazar só o
-   * banco não consegue testar senhas offline. Também normaliza Unicode
-   * para a mesma senha digitada em teclados diferentes bater.
-   */
-  private pepperize(password: string): Buffer {
-    return createHmac('sha256', this.pepper)
-      .update(normalizePassword(password))
-      .digest();
   }
 }
 
-function parse(
+function b64(buffer: Buffer): string {
+  return buffer.toString('base64').replace(/=+$/, '');
+}
+
+function parseArgon2(
   stored: string,
-): { params: ScryptParams; salt: Buffer; key: Buffer } | null {
-  const [prefix, paramStr, salt, key] = stored.split('$');
-  if (prefix !== PREFIX || !paramStr || !salt || !key) return null;
-  const match = /^ln=(\d+),r=(\d+),p=(\d+)$/.exec(paramStr);
-  if (!match) return null;
+): { params: Argon2Params; salt: Buffer; key: Buffer } | null {
+  const match =
+    /^\$argon2id\$v=(\d+)\$m=(\d+),t=(\d+),p=(\d+)\$([A-Za-z0-9+/]+)\$([A-Za-z0-9+/]+)$/.exec(
+      stored,
+    );
+  if (!match || Number(match[1]) !== ARGON2_VERSION) return null;
+  const key = Buffer.from(match[6]!, 'base64');
+  if (key.length < 16) return null;
   return {
-    params: { ln: Number(match[1]), r: Number(match[2]), p: Number(match[3]) },
-    salt: Buffer.from(salt, 'base64'),
-    key: Buffer.from(key, 'base64'),
+    params: { m: Number(match[2]), t: Number(match[3]), p: Number(match[4]) },
+    salt: Buffer.from(match[5]!, 'base64'),
+    key,
   };
+}
+
+/*
+ * Legado: as primeiras contas foram criadas com scrypt + pepper HMAC
+ * (`scrypt$ln=15,r=8,p=3$salt$hash`). Esses hashes ainda são aceitos no
+ * login e `needsRehash` devolve true para eles, então o próprio login
+ * regrava a senha em Argon2id. Pode ser removido quando não houver mais
+ * nenhum `scrypt$` em `users.password_hash`.
+ */
+const LEGACY_SCRYPT_PREFIX = 'scrypt$';
+
+function verifyLegacyScrypt(
+  password: string,
+  stored: string,
+  pepper: Buffer,
+): Promise<boolean> {
+  const match = /^scrypt\$ln=(\d+),r=(\d+),p=(\d+)\$([^$]+)\$([^$]+)$/.exec(
+    stored,
+  );
+  if (!match) return Promise.resolve(false);
+  const N = 2 ** Number(match[1]);
+  const r = Number(match[2]);
+  const p = Number(match[3]);
+  const salt = Buffer.from(match[4]!, 'base64');
+  const expected = Buffer.from(match[5]!, 'base64');
+  if (expected.length < 16) return Promise.resolve(false);
+  const peppered = createHmac('sha256', pepper).update(password).digest();
+  return new Promise((resolve, reject) => {
+    scrypt(
+      peppered,
+      salt,
+      expected.length,
+      { N, r, p, maxmem: 256 * N * r + 1024 * 1024 },
+      (err, key) =>
+        err ? reject(err) : resolve(timingSafeEqual(key, expected)),
+    );
+  });
 }

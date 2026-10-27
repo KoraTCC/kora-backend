@@ -107,7 +107,7 @@ export class AuthService {
     const user = await this.users.findByEmail(input.email);
 
     if (!user) {
-      // Gasta o mesmo tempo de um scrypt real: o tempo de resposta não
+      // Gasta o mesmo tempo de um Argon2id real: o tempo de resposta não
       // revela se o e-mail tem conta.
       await this.hasher.verify(input.password, await this.getDummyHash());
       await this.audit.record(AuditEvent.LoginFailure, meta, null, {

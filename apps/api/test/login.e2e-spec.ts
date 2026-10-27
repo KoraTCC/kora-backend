@@ -1,7 +1,23 @@
 import type { INestApplication } from '@nestjs/common';
+import { createHmac, randomBytes, scryptSync } from 'node:crypto';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
 import { createTestApp, uniqueIp } from './app.js';
+
+/** Hash no formato antigo (scrypt + pepper HMAC), como o das primeiras contas. */
+function legacyScryptHash(password: string): string {
+  const salt = randomBytes(16);
+  const peppered = createHmac('sha256', process.env.PASSWORD_PEPPER!)
+    .update(password.normalize('NFKC'))
+    .digest();
+  const key = scryptSync(peppered, salt, 64, {
+    N: 2 ** 15,
+    r: 8,
+    p: 3,
+    maxmem: 64 * 1024 * 1024,
+  });
+  return `scrypt$ln=15,r=8,p=3$${salt.toString('base64')}$${key.toString('base64')}`;
+}
 
 const ORIGIN = 'http://localhost:5173';
 const account = {
@@ -155,5 +171,24 @@ describe('POST /auth/login (e2e)', () => {
     }
     expect(statuses.slice(0, 10).every((s) => s === 401)).toBe(true);
     expect(statuses[10]).toBe(429);
+  });
+
+  it('migra contas antigas de scrypt para Argon2id no primeiro login', async () => {
+    const email = 'legado@example.com';
+    await db.query(
+      `INSERT INTO users (name, email, password_hash, password_changed_at)
+       VALUES ('Conta Legada', $1, $2, now())`,
+      [email, legacyScryptHash(account.password)],
+    );
+
+    await login({ email, password: account.password }).expect(200);
+
+    const [user] = await db.query(
+      `SELECT password_hash FROM users WHERE email = $1`,
+      [email],
+    );
+    expect(user.password_hash).toMatch(/^\$argon2id\$v=19\$m=19456,t=2,p=1\$/);
+    // E a senha continua funcionando com o hash novo.
+    await login({ email, password: account.password }).expect(200);
   });
 });
