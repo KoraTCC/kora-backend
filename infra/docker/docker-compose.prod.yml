@@ -31,8 +31,12 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
-    # Sem `ports`: o banco só é acessível pela rede interna.
-    networks: [backend]
+    # Só em 127.0.0.1: acesso de ferramentas (DBeaver) apenas por túnel SSH.
+    # Nunca publique sem o 127.0.0.1: o Docker ignora o UFW.
+    ports:
+      - '127.0.0.1:${POSTGRES_PORT:-5432}:5432'
+    # Uma rede `internal` não permite publicar portas, por isso a `host`.
+    networks: [backend, host]
 
   # Roda as migrations pendentes e termina. A API só sobe se ele terminar com sucesso.
   migrate:
