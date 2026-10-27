@@ -78,6 +78,22 @@ export class AuthController {
     }
   }
 
+  @Post('logout')
+  @HttpCode(204)
+  @Throttle({ default: { limit: 30, ttl: 60_000 } })
+  async logout(
+    @Req() req: Request,
+    @ReqMeta() meta: RequestMeta,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<void> {
+    const token: unknown = req.cookies?.[this.cookies.refreshName];
+    try {
+      await this.auth.logout(typeof token === 'string' ? token : '', meta);
+    } finally {
+      this.cookies.clear(res);
+    }
+  }
+
   @Post('login')
   @HttpCode(200)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })

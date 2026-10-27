@@ -20,7 +20,7 @@ Este documento registra **o que** foi feito na autenticação e **por quê**. El
 - Parâmetros: `N=2^15, r=8, p=3`. Fazem parte da tabela da OWASP, usam cerca de 32 MiB por hash e levam cerca de 200 ms. Outra opção da tabela (`N=2^17, r=8, p=1`) usa 128 MiB e limitaria logins simultâneos numa VPS pequena.
 - Salt aleatório de 16 bytes por senha, contra rainbow tables e para que senhas iguais não gerem hashes iguais.
 - **Pepper**: antes do scrypt, a senha passa por `HMAC-SHA256(pepper, senha)`. O pepper fica em variável de ambiente e não no banco. Quem vazar só o banco não consegue testar senhas offline.
-- Unicode normalizado (NFKC): a mesma senha digitada em teclados/SOs diferentes gera o mesmo hash.
+- Unicode normalizado (NFKC) antes do tamanho, da política e do hash: representações compatíveis não contornam a política e a mesma senha digitada em teclados/SOs diferentes gera o mesmo hash.
 - Formato autodescritivo `scrypt$ln=15,r=8,p=3$<salt>$<hash>`. Permite aumentar o custo no futuro e refazer o hash de forma transparente no próximo login (`needsRehash`).
 - Comparação em tempo constante (`timingSafeEqual`).
 - Versão assíncrona do scrypt: roda no threadpool do libuv, sem travar o event loop.
@@ -101,3 +101,13 @@ O access token dura 15 min. Quando a API responde 401, o front chama esta rota u
 - **Janela de tolerância (10 s)**: duas abas podem renovar ao mesmo tempo com o mesmo token. Um token rotacionado há menos de 10 s é só recusado, sem derrubar a família. Essa recusa não apaga os cookies: a aba que perdeu a corrida usa os cookies novos que a outra resposta gravou e repete a requisição.
 - Rate limit: 30 renovações/min por IP.
 - **Limitação conhecida**: depois de um reuso, os access tokens já emitidos para a família continuam válidos até vencer (no máximo 15 min). O `AccessTokenGuard` não consulta o banco de sessões, para não pagar uma consulta a cada requisição.
+
+### Encerrar a sessão: `POST /auth/logout`
+
+1. Lê o refresh token do cookie e localiza sua família no banco com lock de linha.
+2. Revoga todos os refresh tokens ainda ativos da família.
+3. Registra `LOGOUT` na auditoria e apaga os cookies de acesso e refresh.
+4. Responde `204` mesmo quando o cookie está ausente ou já é inválido, mantendo o logout idempotente.
+
+- O endpoint não depende de um access token válido, então também funciona quando o JWT curto já expirou.
+- Como o access token é stateless, uma cópia dele pode continuar válida até sua expiração, por no máximo 15 minutos.
