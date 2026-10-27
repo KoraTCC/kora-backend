@@ -10,7 +10,7 @@ Este documento registra **o que** foi feito na autenticação e **por quê**. El
 | Sessão                | JWT de acesso (15 min) + refresh token opaco (7 dias, rotativo)              |
 | Transporte dos tokens | Cookies `httpOnly`, `Secure`, `SameSite`; nunca em `localStorage`            |
 | CSRF                  | `SameSite` + checagem de `Origin` em métodos que alteram estado              |
-| Abuso                 | Rate limit por IP (API e Nginx) e, no login, bloqueio por conta              |
+| Abuso                 | Rate limit por IP na API e, no login, bloqueio por conta                     |
 | Rastreabilidade       | Tabela `audit_logs` com eventos de autenticação, IP e user-agent             |
 
 ## Senhas
@@ -20,7 +20,7 @@ Este documento registra **o que** foi feito na autenticação e **por quê**. El
 - Parâmetros: `m=19 MiB, t=2, p=1`, a configuração mínima recomendada pela OWASP. Leva cerca de 80 ms por hash e cabe numa VPS de 1 vCPU com vários logins simultâneos.
 - Salt aleatório de 16 bytes por senha, contra rainbow tables e para que senhas iguais não gerem hashes iguais.
 - **Pepper**: vai no parâmetro `secret` do próprio Argon2 (RFC 9106, seção 3.1). Fica em variável de ambiente e não no banco: quem vazar só o banco não consegue testar senhas offline.
-- Unicode normalizado (NFKC): a mesma senha digitada em teclados/SOs diferentes gera o mesmo hash.
+- Unicode normalizado (NFKC, `normalizePassword` de `@kora/contracts`) antes do tamanho, da política e do hash: representações compatíveis não contornam a política e a mesma senha digitada em teclados/SOs diferentes gera o mesmo hash.
 - Formato PHC padrão: `$argon2id$v=19$m=19456,t=2,p=1$<salt>$<hash>`, o mesmo de outras bibliotecas de Argon2. Permite aumentar o custo no futuro e refazer o hash de forma transparente no próximo login (`needsRehash`).
 - Comparação em tempo constante (`timingSafeEqual`).
 - Versão assíncrona: roda no threadpool do libuv, sem travar o event loop.
@@ -50,7 +50,7 @@ Este documento registra **o que** foi feito na autenticação e **por quê**. El
 - `OriginGuard`: POST/PUT/PATCH/DELETE com `Origin` fora da allowlist (`FRONTEND_ORIGINS`) recebem 403.
 - CORS só para o frontend, com `credentials: true`.
 - `helmet` (CSP, HSTS, nosniff, frame-ancestors…), `Cache-Control: no-store` nas rotas de auth.
-- Nginx sobrescreve o `X-Forwarded-For`, e a API confia em exatamente 1 proxy (`TRUST_PROXY=1`). Assim o cliente não consegue forjar o IP para fugir do rate limit.
+- O Nginx da VPS precisa sobrescrever o `X-Forwarded-For` (ver `docs/deploy.md`), e a API confia em exatamente 1 proxy (`TRUST_PROXY=1`). Assim o cliente não consegue forjar o IP para fugir do rate limit.
 - Logs com redação de senha, tokens, cookies e `Authorization`.
 
 ## Fluxos
@@ -103,3 +103,13 @@ O access token dura 15 min. Quando a API responde 401, o front chama esta rota u
 - **Janela de tolerância (10 s)**: duas abas podem renovar ao mesmo tempo com o mesmo token. Um token rotacionado há menos de 10 s é só recusado, sem derrubar a família. Essa recusa não apaga os cookies: a aba que perdeu a corrida usa os cookies novos que a outra resposta gravou e repete a requisição.
 - Rate limit: 30 renovações/min por IP.
 - **Limitação conhecida**: depois de um reuso, os access tokens já emitidos para a família continuam válidos até vencer (no máximo 15 min). O `AccessTokenGuard` não consulta o banco de sessões, para não pagar uma consulta a cada requisição.
+
+### Encerrar a sessão: `POST /auth/logout`
+
+1. Lê o refresh token do cookie e localiza sua família no banco com lock de linha.
+2. Revoga todos os refresh tokens ainda ativos da família.
+3. Registra `LOGOUT` na auditoria e apaga os cookies de acesso e refresh.
+4. Responde `204` mesmo quando o cookie está ausente ou já é inválido, mantendo o logout idempotente.
+
+- O endpoint não depende de um access token válido, então também funciona quando o JWT curto já expirou.
+- Como o access token é stateless, uma cópia dele pode continuar válida até sua expiração, por no máximo 15 minutos.

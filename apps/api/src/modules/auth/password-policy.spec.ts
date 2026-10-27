@@ -16,6 +16,12 @@ describe('checkPasswordPolicy', () => {
     },
   );
 
+  it('recusa senha comum escrita com caracteres Unicode compatíveis', () => {
+    expect(checkPasswordPolicy('ｐａｓｓｗｏｒｄ１２３４', ctx)).toMatch(
+      /comum/,
+    );
+  });
+
   it('recusa senha que contém o e-mail', () => {
     expect(checkPasswordPolicy('maria.silva2024!', ctx)).toMatch(/e-mail/);
   });

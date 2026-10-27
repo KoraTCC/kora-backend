@@ -8,4 +8,3 @@ coverage/
 *.log
 .DS_Store
 *:Zone.Identifier
-infra/docker/certs/

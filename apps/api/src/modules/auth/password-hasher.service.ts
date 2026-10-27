@@ -1,3 +1,4 @@
+import { normalizePassword } from '@kora/contracts';
 import { Inject, Injectable } from '@nestjs/common';
 import {
   argon2,
@@ -75,7 +76,7 @@ export class PasswordHasher {
   async hash(password: string): Promise<string> {
     const salt = randomBytes(SALT_LENGTH);
     const key = await argon2idAsync(
-      normalize(password),
+      normalizePassword(password),
       salt,
       this.pepper,
       CURRENT_PARAMS,
@@ -87,12 +88,16 @@ export class PasswordHasher {
 
   async verify(password: string, stored: string): Promise<boolean> {
     if (stored.startsWith(LEGACY_SCRYPT_PREFIX)) {
-      return verifyLegacyScrypt(normalize(password), stored, this.pepper);
+      return verifyLegacyScrypt(
+        normalizePassword(password),
+        stored,
+        this.pepper,
+      );
     }
     const parsed = parseArgon2(stored);
     if (!parsed) return false;
     const key = await argon2idAsync(
-      normalize(password),
+      normalizePassword(password),
       parsed.salt,
       this.pepper,
       parsed.params,
@@ -110,11 +115,6 @@ export class PasswordHasher {
       m !== CURRENT_PARAMS.m || t !== CURRENT_PARAMS.t || p !== CURRENT_PARAMS.p
     );
   }
-}
-
-/** A mesma senha digitada em teclados/SOs diferentes gera o mesmo hash. */
-function normalize(password: string): string {
-  return password.normalize('NFKC');
 }
 
 function b64(buffer: Buffer): string {

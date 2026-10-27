@@ -22,7 +22,7 @@ const envSchema = z.object({
   DATABASE_URL: z.url(),
   // Origens do frontend autorizadas (CORS + OriginGuard), separadas por vírgula.
   FRONTEND_ORIGINS: csv,
-  // Quantos proxies confiáveis existem na frente da API (1 = Nginx).
+  // Quantos proxies confiáveis existem na frente da API (1 = Nginx da VPS).
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),
 
   // Segredos: no mínimo 32 caracteres (gere com `openssl rand -hex 32`).

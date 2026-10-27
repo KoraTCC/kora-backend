@@ -1,66 +1,103 @@
 # Deploy na VPS
 
-A stack de produção fica em `infra/docker/docker-compose.prod.yml`:
+## Quem faz o quê
 
-| Serviço    | Papel                                                                         |
-| ---------- | ----------------------------------------------------------------------------- |
-| `nginx`    | Único serviço exposto (80/443). TLS, redirect HTTP→HTTPS e rate limit por IP. |
-| `api`      | API NestJS. Sobe apenas depois que as migrations rodarem com sucesso.         |
-| `migrate`  | Executa `typeorm migration:run` e termina.                                    |
-| `postgres` | Banco em rede interna (`internal: true`), sem porta publicada.                |
-| `certbot`  | Emissão/renovação de certificados (perfil `certbot`, não sobe por padrão).    |
+```
+Internet ─▶ Nginx da VPS (80/443, TLS) ─▶ 127.0.0.1:3000 ─▶ container api ─▶ container postgres
+            configurado na máquina          este repositório (docker-compose.prod.yml)
+```
 
-## Primeira vez
+| Parte                      | Onde fica                            | Responsabilidade                                                       |
+| -------------------------- | ------------------------------------ | ---------------------------------------------------------------------- |
+| Nginx + certbot            | Instalados na VPS, fora deste repo   | TLS, redirect HTTP→HTTPS, rotear `app.` e `api.`, repassar o IP real   |
+| `api`                      | `infra/docker/docker-compose.prod.yml` | A aplicação, publicada **só** em `127.0.0.1:${API_PORT}`             |
+| `migrate`                  | idem                                 | Roda `typeorm migration:run` e termina; a API só sobe se ele passar    |
+| `postgres`                 | idem                                 | Banco em rede `internal`, sem porta publicada                          |
 
-Pré-requisitos: Docker e o plugin compose instalados, e o DNS do `API_DOMAIN` apontando para a VPS.
+O mesmo Nginx serve o frontend e a API. Por isso ele é configuração da máquina, e não deste repositório.
+
+## Pré-requisitos
+
+- VPS preparada: usuário sem root, SSH só por chave, UFW liberando 22/80/443, Docker instalado.
+- DNS: `api.korapag.com` e `app.korapag.com` apontando para o IP da VPS (proxy da Cloudflare desligado).
+
+## 1. Subir a API
 
 ```bash
 git clone https://github.com/KoraTCC/kora-backend.git && cd kora-backend
+git checkout main
 cp infra/docker/.env.example infra/docker/.env
-# edite infra/docker/.env: API_DOMAIN, POSTGRES_PASSWORD (openssl rand -hex 32), FRONTEND_ORIGINS
 ```
 
-Emita o certificado com o certbot em modo standalone (porta 80 livre, antes de subir o Nginx):
+Edite `infra/docker/.env`. Gere cada segredo com `openssl rand -hex 32`:
 
-```bash
-docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env \
-  run --rm -p 80:80 certbot certonly --standalone -d <API_DOMAIN> --agree-tos -m <email>
+```
+POSTGRES_PASSWORD=<segredo>
+JWT_ACCESS_SECRET=<segredo>
+PASSWORD_PEPPER=<segredo>     # guarde fora da VPS: se perder, nenhuma senha funciona
+FRONTEND_ORIGINS=https://app.korapag.com
+TRUST_PROXY=1
+COOKIE_SECURE=true
 ```
 
-Suba tudo:
+```bash
+docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env up -d --build --wait
+curl http://127.0.0.1:3000/health
+```
+
+## 2. Nginx da máquina
 
 ```bash
-docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env up -d --build
+sudo apt install -y nginx certbot python3-certbot-nginx
+```
+
+Crie `/etc/nginx/sites-available/api.korapag.com`:
+
+```nginx
+server {
+    listen 80;
+    server_name api.korapag.com;
+
+    client_max_body_size 1m;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        # SOBRESCREVE (não concatena): o cliente não consegue forjar o próprio IP.
+        proxy_set_header X-Forwarded-For $remote_addr;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/api.korapag.com /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+sudo certbot --nginx -d api.korapag.com
+```
+
+O certbot adiciona o HTTPS e o redirect, e o pacote já agenda a renovação automática. Os headers de segurança (HSTS, CSP, nosniff) vêm da própria API (`helmet`), então não precisam ser repetidos no Nginx.
+
+### Dois cuidados que a segurança da API depende
+
+1. **A API só pode ser publicada em `127.0.0.1`.** O Docker escreve as próprias regras de iptables e **ignora o UFW**. Com `ports: '3000:3000'`, a API ficaria aberta na internet, sem TLS e sem passar pelo Nginx.
+2. **Use `X-Forwarded-For $remote_addr`, nunca `$proxy_add_x_forwarded_for`.** A API usa esse header (com `TRUST_PROXY=1`) para o rate limit, o bloqueio de login e a auditoria. Concatenando, o cliente envia um IP falso a cada tentativa e escapa do rate limit.
+
+Para conferir o primeiro ponto, rode de **outra máquina**. Deve falhar:
+
+```bash
+curl --max-time 5 http://IP_DA_VPS:3000/health
 ```
 
 ## Atualizações
 
 ```bash
 git pull
-docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env up -d --build
-```
-
-O serviço `migrate` roda de novo a cada `up` e só aplica migrations pendentes.
-
-## Renovação do certificado
-
-Os certificados do Let's Encrypt valem 90 dias. Agende (cron) a renovação via webroot e o reload do Nginx:
-
-```bash
-docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env \
-  run --rm certbot renew --webroot -w /var/www/certbot
-docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env \
-  exec nginx nginx -s reload
-```
-
-## Testar a stack de produção localmente
-
-```bash
-sh infra/scripts/self-signed-cert.sh localhost
-cp infra/docker/.env.example infra/docker/.env   # API_DOMAIN=localhost
 docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env up -d --build --wait
-curl -k https://localhost/health
 ```
+
+O `migrate` roda de novo a cada `up` e só aplica as migrations pendentes.
 
 ## Backup do banco
 
@@ -68,3 +105,5 @@ curl -k https://localhost/health
 docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env \
   exec -T postgres pg_dump -U kora kora | gzip > backup-$(date +%F).sql.gz
 ```
+
+Copie os backups para fora da VPS: uma VPS única é um ponto de falha.
