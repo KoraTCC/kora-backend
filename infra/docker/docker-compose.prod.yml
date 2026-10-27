@@ -1,5 +1,8 @@
 # Stack de produção (VPS). Execute a partir da raiz do repositório:
 #   docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env up -d --build
+#
+# TLS, domínio e proxy reverso ficam no Nginx da máquina (ver docs/deploy.md).
+# Este compose só entrega a API em 127.0.0.1:${API_PORT:-3000}.
 name: kora
 
 x-api: &api
@@ -52,40 +55,18 @@ services:
     depends_on:
       migrate:
         condition: service_completed_successfully
-    networks: [backend, edge]
-
-  nginx:
-    image: nginx:1.29-alpine
-    restart: unless-stopped
+    # Só o Nginx da própria máquina alcança a API. Nunca publique sem o
+    # 127.0.0.1: o Docker ignora o UFW e a porta ficaria aberta na internet.
     ports:
-      - '80:80'
-      - '443:443'
-    environment:
-      API_DOMAIN: ${API_DOMAIN}
-    volumes:
-      - ../nginx/templates:/etc/nginx/templates:ro
-      # Desativa o site padrão da imagem, que também escuta na porta 80.
-      - /dev/null:/etc/nginx/conf.d/default.conf:ro
-      - ./certs:/etc/letsencrypt:ro
-      - certbot-webroot:/var/www/certbot:ro
-    depends_on:
-      api:
-        condition: service_healthy
-    networks: [edge]
-
-  # Emissão/renovação de certificados (ver docs/deploy.md). Não sobe por padrão.
-  certbot:
-    image: certbot/certbot:v4.2.0
-    profiles: [certbot]
-    volumes:
-      - ./certs:/etc/letsencrypt
-      - certbot-webroot:/var/www/certbot
+      - '127.0.0.1:${API_PORT:-3000}:3000'
+    # Uma rede `internal` não permite publicar portas, por isso a `host`.
+    networks: [backend, host]
 
 networks:
+  # Postgres fica só aqui: sem saída para fora e sem porta publicada.
   backend:
     internal: true
-  edge:
+  host:
 
 volumes:
   pgdata:
-  certbot-webroot:

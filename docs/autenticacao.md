@@ -10,7 +10,7 @@ Este documento registra **o que** foi feito na autenticação e **por quê**. El
 | Sessão                | JWT de acesso (15 min) + refresh token opaco (7 dias, rotativo)              |
 | Transporte dos tokens | Cookies `httpOnly`, `Secure`, `SameSite`; nunca em `localStorage`            |
 | CSRF                  | `SameSite` + checagem de `Origin` em métodos que alteram estado              |
-| Abuso                 | Rate limit por IP (API e Nginx) e, no login, bloqueio por conta              |
+| Abuso                 | Rate limit por IP na API e, no login, bloqueio por conta                     |
 | Rastreabilidade       | Tabela `audit_logs` com eventos de autenticação, IP e user-agent             |
 
 ## Senhas
@@ -48,7 +48,7 @@ Este documento registra **o que** foi feito na autenticação e **por quê**. El
 - `OriginGuard`: POST/PUT/PATCH/DELETE com `Origin` fora da allowlist (`FRONTEND_ORIGINS`) recebem 403.
 - CORS só para o frontend, com `credentials: true`.
 - `helmet` (CSP, HSTS, nosniff, frame-ancestors…), `Cache-Control: no-store` nas rotas de auth.
-- Nginx sobrescreve o `X-Forwarded-For`, e a API confia em exatamente 1 proxy (`TRUST_PROXY=1`). Assim o cliente não consegue forjar o IP para fugir do rate limit.
+- O Nginx da VPS precisa sobrescrever o `X-Forwarded-For` (ver `docs/deploy.md`), e a API confia em exatamente 1 proxy (`TRUST_PROXY=1`). Assim o cliente não consegue forjar o IP para fugir do rate limit.
 - Logs com redação de senha, tokens, cookies e `Authorization`.
 
 ## Fluxos

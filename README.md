@@ -17,8 +17,7 @@ Commits seguem [Conventional Commits](https://www.conventionalcommits.org/pt-br/
 ```
 apps/api/            API NestJS (TypeORM + PostgreSQL)
 packages/contracts/  Schemas zod e tipos compartilhados com o frontend
-infra/docker/        docker-compose de desenvolvimento e de produção
-infra/nginx/         Configuração do proxy reverso (TLS)
+infra/docker/        docker-compose de desenvolvimento e de produção (sem proxy: o Nginx é da VPS)
 docs/                Arquitetura e guia de deploy
 ```
 
