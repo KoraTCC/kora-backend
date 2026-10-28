@@ -102,7 +102,7 @@ O access token dura 15 min. Quando a API responde 401, o front chama esta rota u
 
 - **Janela de tolerância (10 s)**: duas abas podem renovar ao mesmo tempo com o mesmo token. Um token rotacionado há menos de 10 s é só recusado, sem derrubar a família. Essa recusa não apaga os cookies: a aba que perdeu a corrida usa os cookies novos que a outra resposta gravou e repete a requisição.
 - Rate limit: 30 renovações/min por IP.
-- **Limitação conhecida**: depois de um reuso, os access tokens já emitidos para a família continuam válidos até vencer (no máximo 15 min). O `AccessTokenGuard` não consulta o banco de sessões, para não pagar uma consulta a cada requisição.
+- **Revogação imediata**: o `AccessTokenGuard` também confere se a sessão (`sid` do JWT) ainda tem refresh token ativo. Logout, "encerrar sessão", redefinição de senha e reuso de refresh derrubam o access token **na hora**, sem esperar os 15 min. O custo é uma consulta indexada por requisição.
 
 ### Encerrar a sessão: `POST /auth/logout`
 
@@ -137,3 +137,17 @@ O access token dura 15 min. Quando a API responde 401, o front chama esta rota u
 
 - **Rate limit:** 5 pedidos/min e 10 redefinições/min por IP.
 - **Link inválido, usado ou expirado:** `400 "Link inválido ou expirado. Peça um novo."`, sem dizer qual dos três casos aconteceu.
+
+### Sessões ativas: `GET /sessions`, `DELETE /sessions/:id`, `DELETE /sessions/others`
+
+- Cada sessão é uma família de refresh tokens. A lista mostra o token mais recente de cada família ativa: dispositivo (deduzido do user-agent), IP e último uso. A sessão atual é identificada pelo `sid` do access token.
+- Encerrar uma sessão revoga a família inteira, e o dispositivo cai na próxima requisição. Sessão de outra pessoa responde 404.
+- `GET /security/access-log` lista as últimas tentativas de login (sucesso ou falha), vindas da `audit_logs`.
+- Não há geolocalização por IP: a API mostra "Local não identificado" em vez de inventar uma cidade.
+
+### Chaves de API: `/api-keys`
+
+- A **chave secreta** (`sk_test_…`, 32 bytes aleatórios) aparece **uma única vez**, na criação ou na rotação. O banco guarda só o SHA-256 e o começo/fim (`sk_test_91be…59d0`) para exibir. Mesmo critério dos refresh tokens: se o banco vazar, as chaves não vazam.
+- A **chave publicável** (`pk_test_…`) é pública por definição e fica inteira. Ela é criada no primeiro acesso.
+- Rotacionar revoga a secreta mais recente e cria outra numa transação. Limite de 5 secretas ativas. Criação e revogação vão para a auditoria.
+- Ainda não existe autenticação de requisições por chave de API: `lastUsedAt` e `callsLast7d` ficam vazios até isso entrar.

@@ -1,3 +1,4 @@
+import { ApiKey } from '../modules/api-keys/api-key.entity.js';
 import { AuditLog } from '../modules/audit/audit-log.entity.js';
 import { PasswordResetToken } from '../modules/auth/password-reset-token.entity.js';
 import { RefreshToken } from '../modules/auth/refresh-token.entity.js';
@@ -15,4 +16,5 @@ export const entities = [
   Merchant,
   Wallet,
   Charge,
+  ApiKey,
 ];

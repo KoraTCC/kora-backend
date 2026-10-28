@@ -5,6 +5,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import {
   DataSource,
   IsNull,
+  Not,
   type EntityManager,
   type Repository,
 } from 'typeorm';
@@ -129,6 +130,74 @@ export class SessionService {
         },
       };
     });
+  }
+
+  /** A sessão ainda tem refresh token válido (não revogada nem vencida)? */
+  async isActive(familyId: string): Promise<boolean> {
+    const [row] = await this.dataSource.query<Array<{ active: boolean }>>(
+      `SELECT EXISTS (
+         SELECT 1 FROM refresh_tokens
+          WHERE family_id = $1 AND revoked_at IS NULL
+            AND expires_at > now() AND session_expires_at > now()
+       ) AS active`,
+      [familyId],
+    );
+    return row?.active ?? false;
+  }
+
+  /** Sessões ativas do usuário: o token mais recente de cada família. */
+  async listActive(userId: string): Promise<
+    Array<{
+      familyId: string;
+      ip: string | null;
+      userAgent: string | null;
+      lastActiveAt: Date;
+    }>
+  > {
+    const rows = await this.dataSource.query<
+      Array<{
+        family_id: string;
+        ip: string | null;
+        user_agent: string | null;
+        created_at: Date;
+      }>
+    >(
+      `SELECT DISTINCT ON (family_id) family_id, ip, user_agent, created_at
+         FROM refresh_tokens
+        WHERE user_id = $1 AND revoked_at IS NULL
+          AND expires_at > now() AND session_expires_at > now()
+        ORDER BY family_id, created_at DESC`,
+      [userId],
+    );
+    return rows
+      .map((row) => ({
+        familyId: row.family_id,
+        ip: row.ip,
+        userAgent: row.user_agent,
+        lastActiveAt: row.created_at,
+      }))
+      .sort((a, b) => b.lastActiveAt.getTime() - a.lastActiveAt.getTime());
+  }
+
+  /** Encerra uma sessão do usuário. Devolve false se ela não existe ou é de outro. */
+  async revokeSession(userId: string, familyId: string): Promise<boolean> {
+    const result = await this.refreshTokens.update(
+      { userId, familyId, revokedAt: IsNull() },
+      { revokedAt: new Date() },
+    );
+    return (result.affected ?? 0) > 0;
+  }
+
+  /** Encerra todas as sessões do usuário, menos a informada. */
+  async revokeOtherSessions(
+    userId: string,
+    keepFamilyId: string,
+  ): Promise<number> {
+    const result = await this.refreshTokens.update(
+      { userId, familyId: Not(keepFamilyId), revokedAt: IsNull() },
+      { revokedAt: new Date() },
+    );
+    return result.affected ?? 0;
   }
 
   /** Revoga todas as sessões do usuário (ex.: depois de redefinir a senha). */

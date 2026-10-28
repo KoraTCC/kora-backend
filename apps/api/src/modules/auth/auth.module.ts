@@ -14,6 +14,7 @@ import { PasswordResetToken } from './password-reset-token.entity.js';
 import { PasswordResetService } from './password-reset.service.js';
 import { RefreshToken } from './refresh-token.entity.js';
 import { SessionService } from './session.service.js';
+import { SessionsController } from './sessions.controller.js';
 
 @Module({
   imports: [
@@ -30,7 +31,7 @@ import { SessionService } from './session.service.js';
     AuditModule,
     MailModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, SessionsController],
   providers: [
     AuthService,
     AuthCookies,

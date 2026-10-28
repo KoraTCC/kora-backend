@@ -20,6 +20,9 @@ export enum AuditEvent {
   PasswordResetCompleted = 'PASSWORD_RESET_COMPLETED',
   ChargeCreated = 'CHARGE_CREATED',
   ChargeSimulated = 'CHARGE_SIMULATED',
+  SessionRevoked = 'SESSION_REVOKED',
+  ApiKeyCreated = 'API_KEY_CREATED',
+  ApiKeyRevoked = 'API_KEY_REVOKED',
 }
 
 export type AuditMetadata = Record<string, string | number | boolean | null>;

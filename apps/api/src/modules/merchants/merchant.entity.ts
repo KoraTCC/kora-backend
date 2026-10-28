@@ -1,4 +1,4 @@
-import type { Network } from '@kora/contracts';
+import type { BillingSettings, Network } from '@kora/contracts';
 import {
   Column,
   CreateDateColumn,
@@ -82,6 +82,10 @@ export class Merchant {
     default: () => "'{sepolia,amoy,bitcoin-testnet}'",
   })
   enabledNetworks: Network[];
+
+  /** Preferências de cobrança; `null` = valores padrão (ver MerchantsService). */
+  @Column({ name: 'billing_settings', type: 'jsonb', nullable: true })
+  billingSettings: BillingSettings | null;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
