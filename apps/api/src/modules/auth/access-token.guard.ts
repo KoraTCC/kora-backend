@@ -15,6 +15,8 @@ const INVALID_SESSION = 'Sessão expirada ou inválida.';
 
 interface AuthenticatedRequest extends Request {
   user?: User;
+  /** Sessão (família de refresh tokens) do access token. */
+  sessionId?: string;
 }
 
 /**
@@ -48,8 +50,14 @@ export class AccessTokenGuard implements CanActivate {
     if (!user || payload.iat < changedAt) {
       throw new UnauthorizedException(INVALID_SESSION);
     }
+    // Sessão encerrada (logout, "encerrar sessão", reuso de refresh) derruba
+    // o access token na hora, sem esperar os 15 min de validade.
+    if (!(await this.sessions.isActive(payload.sid))) {
+      throw new UnauthorizedException(INVALID_SESSION);
+    }
 
     req.user = user;
+    req.sessionId = payload.sid;
     return true;
   }
 }
@@ -60,5 +68,14 @@ export const CurrentUser = createParamDecorator(
     const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
     if (!req.user) throw new UnauthorizedException(INVALID_SESSION);
     return req.user;
+  },
+);
+
+/** Id da sessão atual, carregado pelo `AccessTokenGuard`. */
+export const CurrentSessionId = createParamDecorator(
+  (_: unknown, context: ExecutionContext): string => {
+    const req = context.switchToHttp().getRequest<AuthenticatedRequest>();
+    if (!req.sessionId) throw new UnauthorizedException(INVALID_SESSION);
+    return req.sessionId;
   },
 );
