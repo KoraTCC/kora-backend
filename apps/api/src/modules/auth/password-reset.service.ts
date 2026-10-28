@@ -113,6 +113,12 @@ export class PasswordResetService {
       );
     });
 
-    this.mail.sendInBackground(passwordChangedEmail(user.email, user.name));
+    this.mail.sendInBackground(
+      passwordChangedEmail(
+        user.email,
+        user.name,
+        `${this.appUrl}/forgot-password`,
+      ),
+    );
   }
 }
