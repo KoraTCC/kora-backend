@@ -1,4 +1,9 @@
-import type { ChargeDetailResponse, ChargeResponse } from '@kora/contracts';
+import type {
+  ChargeDetailResponse,
+  ChargeResponse,
+  CheckoutResponse,
+} from '@kora/contracts';
+import type { Merchant } from '../merchants/merchant.entity.js';
 import type { Charge } from './charge.entity.js';
 import { toNetworkDecimals } from './quote.js';
 
@@ -125,4 +130,35 @@ function buildTimeline(charge: Charge): TimelineEvent[] {
     }
   }
   return events;
+}
+
+/** Versão pública: nada de e-mail do cliente, descrição ou dados internos. */
+export function toCheckoutResponse(
+  charge: Charge,
+  merchant: Merchant,
+): CheckoutResponse {
+  return {
+    chargeId: charge.id,
+    reference: charge.reference,
+    status: charge.status === 'partial' ? 'detected' : charge.status,
+    amountCents: charge.amountCents,
+    cryptoAmount: toNetworkDecimals(charge.cryptoAmount, charge.network),
+    asset: charge.asset,
+    network: charge.network,
+    address: charge.address,
+    rateCents: Number(charge.lockedRateCents),
+    tolerance: Number(charge.tolerance),
+    confirmations: charge.confirmations,
+    requiredConfirmations: charge.requiredConfirmations,
+    createdAt: charge.createdAt.toISOString(),
+    expiresAt: charge.expiresAt.toISOString(),
+    detectedAt: charge.detectedAt?.toISOString() ?? null,
+    txHash: charge.txHash,
+    failureReason:
+      charge.status === 'failed' ? 'A transação foi revertida na rede.' : null,
+    merchant: {
+      name: merchant.displayName,
+      returnUrl: merchant.website,
+    },
+  };
 }

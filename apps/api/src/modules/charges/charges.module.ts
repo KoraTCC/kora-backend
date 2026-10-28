@@ -7,6 +7,7 @@ import { WalletsModule } from '../wallets/wallets.module.js';
 import { Charge } from './charge.entity.js';
 import { ChargesController } from './charges.controller.js';
 import { ChargesService } from './charges.service.js';
+import { CheckoutController } from './checkout.controller.js';
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { ChargesService } from './charges.service.js';
     MerchantsModule,
     WalletsModule,
   ],
-  controllers: [ChargesController],
+  controllers: [ChargesController, CheckoutController],
   providers: [ChargesService],
 })
 export class ChargesModule {}
