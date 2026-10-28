@@ -15,6 +15,18 @@ export class AuditService {
     private readonly repo: Repository<AuditLog>,
   ) {}
 
+  /** Últimas tentativas de login do usuário (para a tela de segurança). */
+  listLoginAttempts(userId: string, limit = 10): Promise<AuditLog[]> {
+    return this.repo.find({
+      where: [
+        { userId, event: AuditEvent.LoginSuccess },
+        { userId, event: AuditEvent.LoginFailure },
+      ],
+      order: { createdAt: 'DESC' },
+      take: limit,
+    });
+  }
+
   /** Registra um evento. Passe `manager` para gravar dentro de uma transação. */
   async record(
     event: AuditEvent,

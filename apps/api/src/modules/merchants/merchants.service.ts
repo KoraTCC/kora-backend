@@ -1,4 +1,7 @@
-import type { UpdateMerchantProfileInput } from '@kora/contracts';
+import type {
+  BillingSettings,
+  UpdateMerchantProfileInput,
+} from '@kora/contracts';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Repository } from 'typeorm';
@@ -47,6 +50,32 @@ export class MerchantsService {
       state: input.state.toUpperCase(),
       country: input.country.toUpperCase(),
     });
+  }
+
+  /** Preferências salvas ou, se a loja nunca salvou, os padrões. */
+  billingSettings(merchant: Merchant): BillingSettings {
+    return (
+      merchant.billingSettings ?? {
+        defaultTolerance: '0.01',
+        defaultWindowMinutes: '30',
+        referenceCurrency: 'BRL',
+        defaultNetwork: 'sepolia',
+        acceptOverpayment: true,
+        autoExpire: true,
+        sendReceipt: false,
+        notifyDetected: true,
+        remindBeforeExpiry: false,
+        senderEmail: merchant.email || 'nao-responda@korapag.com',
+        returnUrl: merchant.website || 'https://app.korapag.com',
+      }
+    );
+  }
+
+  async updateBillingSettings(
+    merchant: Merchant,
+    settings: BillingSettings,
+  ): Promise<void> {
+    await this.merchants.update(merchant.id, { billingSettings: settings });
   }
 
   async updateEnabledNetworks(
