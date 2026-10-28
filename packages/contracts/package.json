@@ -1,6 +1,6 @@
 {
   "name": "@kora/contracts",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Schemas e tipos compartilhados entre o backend e o frontend.",
   "type": "module",
