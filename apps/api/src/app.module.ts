@@ -8,6 +8,9 @@ import { ENV, type Env } from './config/env.js';
 import { DatabaseModule } from './database/database.module.js';
 import { HealthController } from './health/health.controller.js';
 import { AuthModule } from './modules/auth/auth.module.js';
+import { ChargesModule } from './modules/charges/charges.module.js';
+import { MerchantsModule } from './modules/merchants/merchants.module.js';
+import { WalletsModule } from './modules/wallets/wallets.module.js';
 
 @Module({
   imports: [
@@ -46,6 +49,9 @@ import { AuthModule } from './modules/auth/auth.module.js';
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 100 }]),
     DatabaseModule,
     AuthModule,
+    MerchantsModule,
+    WalletsModule,
+    ChargesModule,
   ],
   controllers: [HealthController],
   providers: [

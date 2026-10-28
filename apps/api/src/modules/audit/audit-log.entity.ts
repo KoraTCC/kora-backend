@@ -18,6 +18,8 @@ export enum AuditEvent {
   Logout = 'LOGOUT',
   PasswordResetRequested = 'PASSWORD_RESET_REQUESTED',
   PasswordResetCompleted = 'PASSWORD_RESET_COMPLETED',
+  ChargeCreated = 'CHARGE_CREATED',
+  ChargeSimulated = 'CHARGE_SIMULATED',
 }
 
 export type AuditMetadata = Record<string, string | number | boolean | null>;
