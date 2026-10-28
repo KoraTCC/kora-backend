@@ -90,6 +90,74 @@ Para conferir o primeiro ponto, rode de **outra máquina**. Deve falhar:
 curl --max-time 5 http://IP_DA_VPS:3000/health
 ```
 
+## Deploy contínuo (CD)
+
+```
+push na main ─▶ CI ─▶ workflow Deploy ─▶ imagem no GHCR (latest + sha do commit)
+                                    └─▶ SSH na VPS (chave restrita) ─▶ make deploy-image ─▶ health check
+```
+
+- O workflow `.github/workflows/deploy.yml` só roda depois que o **CI passou** num push na `main`. Ele também tem o botão "Run workflow" para refazer um deploy.
+- A imagem é construída no GitHub e publicada em `ghcr.io/koratcc/kora-api`. A VPS só baixa e troca o container, sem buildar com 1 vCPU.
+- A chave SSH do GitHub **só consegue rodar o deploy**: `command=` no `authorized_keys` força o comando, e o que o GitHub enviar é ignorado. Ela não abre terminal nem faz túnel.
+- O job `vps` usa o environment `production`. Em Settings → Environments → production → *Required reviewers*, dá para exigir aprovação antes de cada deploy.
+
+### Configuração (uma vez)
+
+**1. Chave só para o deploy.** Gere na sua máquina, não na VPS:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-deploy" -f kora_deploy -N ""
+```
+
+**2. Na VPS, como `kora`:** autorize a chave pública com o comando forçado (uma linha só):
+
+```bash
+mkdir -p ~/.ssh && chmod 700 ~/.ssh
+echo "command=\"cd ~/apps && make deploy-image\",no-pty,no-port-forwarding,no-agent-forwarding,no-X11-forwarding $(cat kora_deploy.pub)" >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+```
+
+(copie o conteúdo de `kora_deploy.pub` para a VPS antes, ou cole a chave no lugar do `$(cat …)`).
+
+**3. Na VPS, com seu usuário:** permita o `kora` no SSH. Na linha `AllowUsers` do `/etc/ssh/sshd_config`, acrescente `kora` e rode `sudo systemctl restart ssh`. Ele entra **só** com a chave restrita, porque não tem senha.
+
+**4. Alvo `deploy-image` no `~/apps/Makefile`** (as linhas de comando começam com TAB):
+
+```makefile
+deploy-image: ## Atualiza o código e sobe a imagem já publicada no GHCR
+	git -C $(BACKEND_DIR) checkout main
+	git -C $(BACKEND_DIR) pull --ff-only
+	$(COMPOSE) pull api migrate
+	$(COMPOSE) up -d --wait
+	@$(MAKE) --no-print-directory health
+	docker image prune -f
+```
+
+O `git pull` continua porque o compose e o `.env.example` moram no repositório. O código da API vem na imagem.
+
+**5. Segredos no GitHub** (repo → Settings → Secrets and variables → Actions):
+
+| Segredo | Valor |
+|---|---|
+| `VPS_HOST` | IP da VPS |
+| `VPS_SSH_KEY` | conteúdo do arquivo `kora_deploy` (a chave **privada**) |
+| `VPS_KNOWN_HOSTS` | saída de `ssh-keyscan -t ed25519 <IP da VPS>` (confira a impressão digital) |
+
+Depois, apague o `kora_deploy` da sua máquina: a chave privada só precisa existir no GitHub.
+
+**6. Imagem pública no GHCR.** Depois do primeiro deploy, abra o pacote `kora-api` (organização KoraTCC → Packages) → *Package settings* → *Change visibility* → **Public**. Assim a VPS baixa a imagem sem login. O repositório já é público, então isso não expõe nada novo.
+
+### Rollback
+
+Cada imagem também é publicada com o sha do commit. Para voltar a uma versão:
+
+```bash
+cd ~/apps && IMAGE_TAG=<sha do commit> make deploy-image
+```
+
+As migrations não são desfeitas sozinhas: só volte para uma versão compatível com o banco.
+
 ## Atualizações
 
 ```bash

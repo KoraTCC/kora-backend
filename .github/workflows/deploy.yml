@@ -1,0 +1,91 @@
+name: Deploy
+
+# Roda só depois que o CI passou num push na main: nada quebrado vai para a VPS.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  # Botão "Run workflow" para refazer um deploy manualmente.
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  IMAGE: ghcr.io/koratcc/kora-api
+
+jobs:
+  image:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      sha: ${{ steps.sha.outputs.sha }}
+    steps:
+      - id: sha
+        run: echo "sha=${{ github.event.workflow_run.head_sha || github.sha }}" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.sha.outputs.sha }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build e publicação da imagem
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          # `latest` é o que a VPS sobe; a tag do commit serve para rollback.
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ steps.sha.outputs.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  vps:
+    needs: image
+    runs-on: ubuntu-latest
+    # Environment "production": dá para exigir aprovação antes de cada deploy
+    # (Settings → Environments → production → Required reviewers).
+    environment: production
+    steps:
+      - name: Deploy na VPS
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Host conhecido fixo: evita aceitar um servidor falso (MITM).
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          # A chave só tem permissão para rodar o deploy (command= no
+          # authorized_keys da VPS); o comando enviado aqui é ignorado.
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes "kora@$HOST" deploy
+
+  smoke:
+    needs: vps
+    runs-on: ubuntu-latest
+    steps:
+      - name: API respondendo depois do deploy
+        run: |
+          for i in $(seq 1 10); do
+            curl -fsS https://api.korapag.com/health && exit 0
+            sleep 6
+          done
+          exit 1
