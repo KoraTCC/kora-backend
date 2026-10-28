@@ -60,6 +60,24 @@ export class UsersService {
     });
   }
 
+  /**
+   * Grava a nova senha. Atualizar `password_changed_at` derruba os access
+   * tokens já emitidos (o AccessTokenGuard recusa os mais antigos), e o
+   * bloqueio por tentativas é zerado.
+   */
+  async changePassword(
+    id: string,
+    passwordHash: string,
+    manager: EntityManager,
+  ): Promise<void> {
+    await manager.getRepository(User).update(id, {
+      passwordHash,
+      passwordChangedAt: new Date(),
+      failedLoginCount: 0,
+      lockedUntil: null,
+    });
+  }
+
   async create(
     data: { name: string; email: string; passwordHash: string },
     manager?: EntityManager,

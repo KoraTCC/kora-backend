@@ -3,18 +3,21 @@ import { JwtModule } from '@nestjs/jwt';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ENV, type Env } from '../../config/env.js';
 import { AuditModule } from '../audit/audit.module.js';
+import { MailModule } from '../mail/mail.module.js';
 import { UsersModule } from '../users/users.module.js';
 import { AccessTokenGuard } from './access-token.guard.js';
 import { AuthCookies } from './auth-cookies.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { PasswordHasher } from './password-hasher.service.js';
+import { PasswordResetToken } from './password-reset-token.entity.js';
+import { PasswordResetService } from './password-reset.service.js';
 import { RefreshToken } from './refresh-token.entity.js';
 import { SessionService } from './session.service.js';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([RefreshToken]),
+    TypeOrmModule.forFeature([RefreshToken, PasswordResetToken]),
     JwtModule.registerAsync({
       inject: [ENV],
       useFactory: (env: Env) => ({
@@ -25,6 +28,7 @@ import { SessionService } from './session.service.js';
     }),
     UsersModule,
     AuditModule,
+    MailModule,
   ],
   controllers: [AuthController],
   providers: [
@@ -33,6 +37,7 @@ import { SessionService } from './session.service.js';
     PasswordHasher,
     SessionService,
     AccessTokenGuard,
+    PasswordResetService,
   ],
   // Outros módulos protegem rotas com @UseGuards(AccessTokenGuard); o guard
   // é instanciado no módulo de quem usa, então as dependências vão junto.

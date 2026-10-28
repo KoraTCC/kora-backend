@@ -69,3 +69,12 @@ export interface UserResponse {
 export interface AuthResponse {
   user: UserResponse;
 }
+
+export const forgotPasswordSchema = z.object({ email: emailSchema });
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(1, 'Link inválido').max(200, 'Link inválido'),
+  password: passwordSchema,
+});
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
