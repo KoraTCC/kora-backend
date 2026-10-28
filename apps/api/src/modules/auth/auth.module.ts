@@ -34,5 +34,8 @@ import { SessionService } from './session.service.js';
     SessionService,
     AccessTokenGuard,
   ],
+  // Outros módulos protegem rotas com @UseGuards(AccessTokenGuard); o guard
+  // é instanciado no módulo de quem usa, então as dependências vão junto.
+  exports: [AccessTokenGuard, AuthCookies, SessionService, UsersModule],
 })
 export class AuthModule {}
