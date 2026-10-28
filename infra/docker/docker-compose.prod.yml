@@ -1,5 +1,7 @@
 # Stack de produção (VPS). Execute a partir da raiz do repositório:
 #   docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env up -d --build
+# Com CD, a imagem vem pronta do GHCR (ver docs/deploy.md):
+#   docker compose ... pull api migrate && docker compose ... up -d --wait
 #
 # TLS, domínio e proxy reverso ficam no Nginx da máquina (ver docs/deploy.md).
 # Este compose só entrega a API em 127.0.0.1:${API_PORT:-3000}.
@@ -9,7 +11,8 @@ x-api: &api
   build:
     context: ../..
     dockerfile: apps/api/Dockerfile
-  image: kora-api:${IMAGE_TAG:-latest}
+  # Publicada pelo workflow Deploy. `IMAGE_TAG=<sha do commit>` faz rollback.
+  image: ghcr.io/koratcc/kora-api:${IMAGE_TAG:-latest}
   env_file: .env
   environment:
     NODE_ENV: production
