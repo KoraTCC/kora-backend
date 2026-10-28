@@ -1,7 +1,8 @@
-import type { UpdateMerchantProfileInput } from '@kora/contracts';
+import type { UpdateMerchantProfileInput, WebhookEvent } from '@kora/contracts';
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import type { Repository } from 'typeorm';
+import { randomBytes } from 'node:crypto';
+import { IsNull, type Repository } from 'typeorm';
 import type { User } from '../users/user.entity.js';
 import { Merchant } from './merchant.entity.js';
 
@@ -47,6 +48,29 @@ export class MerchantsService {
       state: input.state.toUpperCase(),
       country: input.country.toUpperCase(),
     });
+  }
+
+  async updateWebhookEvents(
+    merchant: Merchant,
+    events: WebhookEvent[],
+  ): Promise<void> {
+    await this.merchants.update(merchant.id, {
+      webhookEvents: [...new Set(events)],
+    });
+  }
+
+  /** Gera o segredo de webhook no primeiro acesso e devolve o atual. */
+  async ensureWebhookSecret(merchant: Merchant): Promise<string> {
+    if (merchant.webhookSecret) return merchant.webhookSecret;
+    // Só grava se ainda estiver vazio: duas abas não geram segredos diferentes.
+    await this.merchants.update(
+      { id: merchant.id, webhookSecret: IsNull() },
+      { webhookSecret: `whsec_${randomBytes(24).toString('base64url')}` },
+    );
+    const { webhookSecret } = await this.merchants.findOneByOrFail({
+      id: merchant.id,
+    });
+    return webhookSecret!;
   }
 
   async updateEnabledNetworks(

@@ -4,3 +4,4 @@ export * from './health.js';
 export * from './merchants.js';
 export * from './networks.js';
 export * from './wallets.js';
+export * from './webhooks.js';

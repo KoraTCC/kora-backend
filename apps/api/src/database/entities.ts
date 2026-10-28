@@ -5,6 +5,7 @@ import { Charge } from '../modules/charges/charge.entity.js';
 import { Merchant } from '../modules/merchants/merchant.entity.js';
 import { User } from '../modules/users/user.entity.js';
 import { Wallet } from '../modules/wallets/wallet.entity.js';
+import { WebhookEndpoint } from '../modules/webhooks/webhook-endpoint.entity.js';
 
 // Registro explícito das entidades (ESM não combina com globs de arquivos).
 export const entities = [
@@ -15,4 +16,5 @@ export const entities = [
   Merchant,
   Wallet,
   Charge,
+  WebhookEndpoint,
 ];

@@ -1,4 +1,4 @@
-import type { Network } from '@kora/contracts';
+import type { Network, WebhookEvent } from '@kora/contracts';
 import {
   Column,
   CreateDateColumn,
@@ -82,6 +82,28 @@ export class Merchant {
     default: () => "'{sepolia,amoy,bitcoin-testnet}'",
   })
   enabledNetworks: Network[];
+
+  /**
+   * Segredo usado para assinar (HMAC-SHA256) os webhooks desta loja. Gerado no
+   * primeiro acesso. TODO: cifrar em repouso (AES-256-GCM) quando a entrega
+   * real de webhooks existir.
+   */
+  @Column({
+    name: 'webhook_secret',
+    type: 'varchar',
+    length: 64,
+    nullable: true,
+  })
+  webhookSecret: string | null;
+
+  @Column({
+    name: 'webhook_events',
+    type: 'varchar',
+    array: true,
+    default: () =>
+      "'{charge.created,charge.detected,charge.confirmed,charge.partial,charge.expired,charge.failed}'",
+  })
+  webhookEvents: WebhookEvent[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

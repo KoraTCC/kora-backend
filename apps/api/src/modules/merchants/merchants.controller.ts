@@ -24,11 +24,17 @@ export class MerchantsController {
   async me(@CurrentUser() user: User): Promise<MerchantResponse> {
     const merchant = await this.merchants.getOrCreateForUser(user);
     // Só leitura agregada; quem escreve em `charges` é o ChargesModule.
-    const [row] = await this.dataSource.query<Array<{ count: number }>>(
-      'SELECT count(*)::int AS count FROM charges WHERE merchant_id = $1',
+    const [row] = await this.dataSource.query<
+      Array<{ charges: number; endpoints: number }>
+    >(
+      `SELECT (SELECT count(*) FROM charges WHERE merchant_id = $1)::int AS charges,
+              (SELECT count(*) FROM webhook_endpoints WHERE merchant_id = $1)::int AS endpoints`,
       [merchant.id],
     );
-    return toMerchantResponse(merchant, { chargesUsed: row?.count ?? 0 });
+    return toMerchantResponse(merchant, {
+      chargesUsed: row?.charges ?? 0,
+      webhookEndpointsUsed: row?.endpoints ?? 0,
+    });
   }
 
   @Patch('me')

@@ -11,6 +11,7 @@ import { AuthModule } from './modules/auth/auth.module.js';
 import { ChargesModule } from './modules/charges/charges.module.js';
 import { MerchantsModule } from './modules/merchants/merchants.module.js';
 import { WalletsModule } from './modules/wallets/wallets.module.js';
+import { WebhooksModule } from './modules/webhooks/webhooks.module.js';
 
 @Module({
   imports: [
@@ -52,6 +53,7 @@ import { WalletsModule } from './modules/wallets/wallets.module.js';
     MerchantsModule,
     WalletsModule,
     ChargesModule,
+    WebhooksModule,
   ],
   controllers: [HealthController],
   providers: [

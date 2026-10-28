@@ -1,4 +1,7 @@
-import type { MerchantResponse } from '@kora/contracts';
+import {
+  WEBHOOK_ENDPOINTS_LIMIT,
+  type MerchantResponse,
+} from '@kora/contracts';
 import type { Merchant } from './merchant.entity.js';
 
 /** Limites do plano de demonstração (ainda não há cobrança de assinatura). */
@@ -6,7 +9,7 @@ const PLAN = {
   name: 'Starter',
   chargesLimit: 1_000,
   apiCallsLimit: 50_000,
-  webhookEndpointsLimit: 3,
+  webhookEndpointsLimit: WEBHOOK_ENDPOINTS_LIMIT,
 };
 
 function formatDocument(digits: string): string {
@@ -25,7 +28,7 @@ function formatPostalCode(digits: string): string {
 
 export function toMerchantResponse(
   merchant: Merchant,
-  usage: { chargesUsed: number },
+  usage: { chargesUsed: number; webhookEndpointsUsed: number },
 ): MerchantResponse {
   const renewsAt = new Date(merchant.createdAt);
   renewsAt.setMonth(renewsAt.getMonth() + 1);
@@ -63,7 +66,7 @@ export function toMerchantResponse(
       chargesLimit: PLAN.chargesLimit,
       apiCallsUsed: 0,
       apiCallsLimit: PLAN.apiCallsLimit,
-      webhookEndpointsUsed: 0,
+      webhookEndpointsUsed: usage.webhookEndpointsUsed,
       webhookEndpointsLimit: PLAN.webhookEndpointsLimit,
     },
   };

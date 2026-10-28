@@ -37,6 +37,8 @@ export function as(app: INestApplication, cookie: string) {
       withAuth(request(server).post(path)).send(body),
     patch: (path: string, body?: object) =>
       withAuth(request(server).patch(path)).send(body),
+    put: (path: string, body?: object) =>
+      withAuth(request(server).put(path)).send(body),
     delete: (path: string) => withAuth(request(server).delete(path)),
   };
 }
