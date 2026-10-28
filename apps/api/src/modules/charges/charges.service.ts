@@ -4,6 +4,7 @@ import {
   type ChargeDetailResponse,
   type ChargePageResponse,
   type ChargeStatsResponse,
+  type CheckoutResponse,
   type CreateChargeInput,
   type ListChargesQuery,
   type SimulateChargeInput,
@@ -24,7 +25,11 @@ import { AuditService } from '../audit/audit.service.js';
 import type { Merchant } from '../merchants/merchant.entity.js';
 import { WalletsService } from '../wallets/wallets.service.js';
 import { Charge } from './charge.entity.js';
-import { toChargeDetailResponse, toChargeResponse } from './charge.mapper.js';
+import {
+  toChargeDetailResponse,
+  toChargeResponse,
+  toCheckoutResponse,
+} from './charge.mapper.js';
 import { DEMO_RATES_CENTS, halfOf, quoteCryptoAmount } from './quote.js';
 
 function invalidField(path: string, message: string): BadRequestException {
@@ -286,6 +291,25 @@ export class ChargesService {
         manager,
       );
     });
+  }
+
+  /**
+   * Página pública de pagamento. Não exige login: quem tem o link (um UUID
+   * impossível de adivinhar) pode ver a cobrança, como em qualquer gateway.
+   */
+  async getPublicCheckout(id: string): Promise<CheckoutResponse> {
+    await this.dataSource.query(
+      `UPDATE charges SET status = 'expired', updated_at = now()
+        WHERE id = $1 AND status = 'pending' AND expires_at < now()`,
+      [id],
+    );
+    const charge = await this.charges.findOne({
+      where: { id },
+      relations: { merchant: true },
+    });
+    if (!charge?.merchant)
+      throw new NotFoundException('Cobrança não encontrada.');
+    return toCheckoutResponse(charge, charge.merchant);
   }
 
   private async findOwned(merchant: Merchant, id: string): Promise<Charge> {

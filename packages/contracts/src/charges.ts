@@ -118,3 +118,26 @@ export interface ChargeDetailResponse extends ChargeResponse {
     netAmount: string | null;
   };
 }
+
+/** O que a página pública de pagamento pode saber: sem dados do cliente. */
+export interface CheckoutResponse {
+  chargeId: string;
+  reference: string;
+  /** `partial` aparece como `detected`: o pagador ainda pode completar. */
+  status: 'pending' | 'detected' | 'confirmed' | 'expired' | 'failed';
+  amountCents: number;
+  cryptoAmount: string;
+  asset: Asset;
+  network: Network;
+  address: string;
+  rateCents: number;
+  tolerance: number;
+  confirmations: number;
+  requiredConfirmations: number;
+  createdAt: string;
+  expiresAt: string;
+  detectedAt: string | null;
+  txHash: string | null;
+  failureReason: string | null;
+  merchant: { name: string; returnUrl: string };
+}
