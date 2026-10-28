@@ -131,6 +131,16 @@ export class SessionService {
     });
   }
 
+  /** Revoga todas as sessões do usuário (ex.: depois de redefinir a senha). */
+  async revokeAllForUser(
+    userId: string,
+    manager: EntityManager,
+  ): Promise<void> {
+    await manager
+      .getRepository(RefreshToken)
+      .update({ userId, revokedAt: IsNull() }, { revokedAt: new Date() });
+  }
+
   /** Revoga todos os refresh tokens ativos da família informada. */
   revokeFamily(refreshToken: string): Promise<RevokedSession | null> {
     return this.dataSource.transaction(async (manager) => {

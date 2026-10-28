@@ -42,6 +42,20 @@ const envSchema = z.object({
     .int()
     .positive()
     .default(30 * 24 * 3600),
+  // E-mail (SMTP). Em desenvolvimento, o padrão aponta para o Mailpit.
+  SMTP_HOST: z.string().min(1).default('localhost'),
+  SMTP_PORT: z.coerce.number().int().positive().default(1025),
+  // true = TLS direto (porta 465); false = STARTTLS quando o servidor oferecer.
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  MAIL_FROM: z.string().min(3).default('Kora <nao-responda@korapag.com>'),
+  // Endereço do frontend usado nos links dos e-mails (padrão: 1ª origem).
+  APP_URL: z.url().optional(),
+
   // Só desligue em desenvolvimento local sem HTTPS.
   COOKIE_SECURE: z
     .enum(['true', 'false'])

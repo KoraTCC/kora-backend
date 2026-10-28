@@ -113,3 +113,27 @@ O access token dura 15 min. Quando a API responde 401, o front chama esta rota u
 
 - O endpoint não depende de um access token válido, então também funciona quando o JWT curto já expirou.
 - Como o access token é stateless, uma cópia dele pode continuar válida até sua expiração, por no máximo 15 minutos.
+
+### Esqueceu a senha: `POST /auth/password/forgot` e `POST /auth/password/reset`
+
+**Pedido (`forgot`)**
+1. Responde **sempre `202 { ok: true }`**, exista ou não a conta. Assim, a rota não serve para descobrir quais e-mails estão cadastrados.
+2. Se a conta existe, numa transação:
+   - invalida os links anteriores, para que só o mais recente valha;
+   - gera um token de 32 bytes aleatórios e guarda **só o SHA-256** dele, com validade de **30 minutos**;
+   - grava `PASSWORD_RESET_REQUESTED` na auditoria.
+3. O e-mail com o link `APP_URL/reset-password?token=…` é enviado **em segundo plano**. Esperar o SMTP faria a resposta demorar mais quando a conta existe, o que entregaria a informação pelo tempo de resposta.
+
+**Redefinição (`reset`)**
+1. Valida a nova senha (tamanho, política de senha) e gera o hash Argon2id **fora** da transação.
+2. Numa transação, com **lock de linha no token**, para que dois envios do mesmo link não o usem duas vezes:
+   - confere se o token não foi usado e não expirou;
+   - marca o token como usado;
+   - grava a nova senha e atualiza `password_changed_at`, o que derruba os access tokens já emitidos;
+   - zera o bloqueio por tentativas;
+   - **revoga todas as sessões** (refresh tokens);
+   - grava `PASSWORD_RESET_COMPLETED` na auditoria.
+3. Envia um aviso de "sua senha foi alterada" e limpa os cookies do navegador.
+
+- **Rate limit:** 5 pedidos/min e 10 redefinições/min por IP.
+- **Link inválido, usado ou expirado:** `400 "Link inválido ou expirado. Peça um novo."`, sem dizer qual dos três casos aconteceu.
