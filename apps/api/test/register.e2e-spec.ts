@@ -43,6 +43,7 @@ describe('POST /auth/register (e2e)', () => {
       name: 'Maria Silva',
       email: 'maria@example.com',
       createdAt: expect.any(String),
+      twoFactorEnabled: false,
     });
     expect(JSON.stringify(res.body)).not.toMatch(/password|hash/i);
     expect(res.headers['cache-control']).toBe('no-store');

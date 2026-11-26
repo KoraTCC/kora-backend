@@ -74,6 +74,7 @@ describe('POST /auth/login (e2e)', () => {
       name: account.name,
       email: account.email,
       createdAt: expect.any(String),
+      twoFactorEnabled: false,
     });
     expect(JSON.stringify(res.body)).not.toMatch(/password|hash/i);
     expect(res.headers['cache-control']).toBe('no-store');

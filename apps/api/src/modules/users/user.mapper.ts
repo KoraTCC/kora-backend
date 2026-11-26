@@ -8,5 +8,6 @@ export function toUserResponse(user: User): UserResponse {
     name: user.name,
     email: user.email,
     createdAt: user.createdAt.toISOString(),
+    twoFactorEnabled: user.twoFactorEnabledAt !== null,
   };
 }

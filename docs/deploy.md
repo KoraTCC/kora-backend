@@ -35,6 +35,7 @@ Edite `infra/docker/.env`. Gere cada segredo com `openssl rand -hex 32`:
 POSTGRES_PASSWORD=<segredo>
 JWT_ACCESS_SECRET=<segredo>
 PASSWORD_PEPPER=<segredo>     # guarde fora da VPS: se perder, nenhuma senha funciona
+DATA_ENCRYPTION_KEY=<segredo> # cifra o segredo do 2FA; se perder, ninguém com 2FA entra
 FRONTEND_ORIGINS=https://app.korapag.com
 TRUST_PROXY=1
 COOKIE_SECURE=true

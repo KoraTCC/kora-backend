@@ -8,11 +8,16 @@ import { DataSource } from 'typeorm';
 import type { RequestMeta } from '../../common/request-meta.js';
 import { AuditEvent } from '../audit/audit-log.entity.js';
 import { AuditService } from '../audit/audit.service.js';
+import type { User } from '../users/user.entity.js';
 import { toUserResponse } from '../users/user.mapper.js';
 import { UsersService } from '../users/users.service.js';
 import { PasswordHasher } from './password-hasher.service.js';
 import { checkPasswordPolicy } from './password-policy.js';
 import { SessionService, type SessionTokens } from './session.service.js';
+import {
+  TwoFactorService,
+  type TwoFactorMethod,
+} from './two-factor.service.js';
 
 const INVALID_SESSION = 'Sessão expirada ou inválida.';
 
@@ -38,6 +43,15 @@ export interface AuthResult {
   tokens: SessionTokens;
 }
 
+/** Login: ou abre a sessão, ou (com 2FA) devolve o desafio do código. */
+export type LoginResult =
+  | ({ kind: 'session' } & AuthResult)
+  | { kind: 'two-factor'; challenge: string };
+
+const TWO_FACTOR_EXPIRED = 'Sua sessão de login expirou. Entre de novo.';
+const ACCOUNT_LOCKED =
+  'Muitas tentativas inválidas. Tente de novo em alguns minutos.';
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -46,6 +60,7 @@ export class AuthService {
     private readonly hasher: PasswordHasher,
     private readonly sessions: SessionService,
     private readonly audit: AuditService,
+    private readonly twoFactor: TwoFactorService,
   ) {}
 
   private dummyHash?: Promise<string>;
@@ -103,7 +118,7 @@ export class AuthService {
     });
   }
 
-  async login(input: LoginInput, meta: RequestMeta): Promise<AuthResult> {
+  async login(input: LoginInput, meta: RequestMeta): Promise<LoginResult> {
     const user = await this.users.findByEmail(input.email);
 
     if (!user) {
@@ -125,7 +140,7 @@ export class AuthService {
 
     const isValid = await this.hasher.verify(input.password, user.passwordHash);
     if (!isValid) {
-      await this.handleFailedLogin(user.id, meta);
+      await this.handleFailedLogin(user.id, meta, 'wrong_password');
       throw new UnauthorizedException(INVALID_CREDENTIALS);
     }
 
@@ -133,14 +148,63 @@ export class AuthService {
       ? await this.hasher.hash(input.password)
       : undefined;
 
+    // Com 2FA a senha certa ainda não basta: nada de sessão nem de zerar o
+    // contador de falhas até o código do app conferir.
+    if (user.twoFactorEnabledAt) {
+      if (newHash) await this.users.updatePasswordHash(user.id, newHash);
+      return {
+        kind: 'two-factor',
+        challenge: await this.twoFactor.signChallenge(user.id),
+      };
+    }
+
+    return {
+      kind: 'session',
+      ...(await this.openSession(user, meta, { method: 'password', newHash })),
+    };
+  }
+
+  /** Segunda etapa do login: confere o código do app (ou de recuperação). */
+  async completeTwoFactorLogin(
+    challenge: unknown,
+    code: string,
+    meta: RequestMeta,
+  ): Promise<AuthResult> {
+    const userId = await this.twoFactor.readChallenge(challenge);
+    const user = userId ? await this.users.findById(userId) : null;
+    if (!user?.twoFactorEnabledAt) {
+      throw new UnauthorizedException(TWO_FACTOR_EXPIRED);
+    }
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      // Quem chegou aqui já sabe a senha: dá para dizer que a conta travou.
+      throw new UnauthorizedException(ACCOUNT_LOCKED);
+    }
+
+    const method = await this.twoFactor.verifyCredential(user, code);
+    if (!method) {
+      // Código errado conta como falha de login: 5 seguidas travam a conta.
+      await this.handleFailedLogin(user.id, meta, 'wrong_two_factor_code');
+      throw new BadRequestException({
+        message: 'Dados inválidos',
+        issues: [{ path: 'code', message: 'Código inválido ou expirado.' }],
+      });
+    }
+    return this.openSession(user, meta, { method });
+  }
+
+  private openSession(
+    user: User,
+    meta: RequestMeta,
+    options: { method: 'password' | TwoFactorMethod; newHash?: string },
+  ): Promise<AuthResult> {
     return this.dataSource.transaction(async (manager) => {
-      await this.users.recordSuccessfulLogin(user.id, newHash, manager);
+      await this.users.recordSuccessfulLogin(user.id, options.newHash, manager);
       const tokens = await this.sessions.start(user.id, meta, manager);
       await this.audit.record(
         AuditEvent.LoginSuccess,
         meta,
         user.id,
-        {},
+        { method: options.method },
         manager,
       );
       return { user: toUserResponse(user), tokens };
@@ -150,6 +214,7 @@ export class AuthService {
   private async handleFailedLogin(
     userId: string,
     meta: RequestMeta,
+    reason: 'wrong_password' | 'wrong_two_factor_code',
   ): Promise<void> {
     const locked = await this.users.recordFailedLogin(
       userId,
@@ -157,7 +222,7 @@ export class AuthService {
       new Date(Date.now() + LOCK_DURATION_MS),
     );
     await this.audit.record(AuditEvent.LoginFailure, meta, userId, {
-      reason: 'wrong_password',
+      reason,
     });
     if (locked) {
       await this.audit.record(AuditEvent.AccountLocked, meta, userId);

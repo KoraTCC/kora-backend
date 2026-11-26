@@ -47,6 +47,11 @@ export class UsersService {
     return rows[0]?.failed_login_count === 0;
   }
 
+  /** Só troca o hash (parâmetros do Argon2 mudaram), sem mexer nos contadores. */
+  async updatePasswordHash(id: string, passwordHash: string): Promise<void> {
+    await this.users.update(id, { passwordHash });
+  }
+
   async recordSuccessfulLogin(
     id: string,
     passwordHash?: string,

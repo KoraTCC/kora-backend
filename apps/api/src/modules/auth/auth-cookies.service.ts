@@ -6,6 +6,10 @@ import type { SessionTokens } from './session.service.js';
 /** O refresh token só é enviado para as rotas de autenticação. */
 export const REFRESH_COOKIE_PATH = '/auth';
 
+/** O desafio do 2FA só viaja para a rota que confere o código. */
+export const TWO_FACTOR_COOKIE_PATH = '/auth/2fa';
+export const TWO_FACTOR_CHALLENGE_TTL_SECONDS = 5 * 60;
+
 /**
  * Tokens só em cookies httpOnly: o JavaScript da página (e um eventual XSS)
  * não consegue lê-los, ao contrário do localStorage.
@@ -18,10 +22,12 @@ export const REFRESH_COOKIE_PATH = '/auth';
 export class AuthCookies {
   readonly accessName: string;
   readonly refreshName: string;
+  readonly twoFactorName: string;
 
   constructor(@Inject(ENV) private readonly env: Env) {
     this.accessName = env.COOKIE_SECURE ? '__Host-kora_at' : 'kora_at';
     this.refreshName = env.COOKIE_SECURE ? '__Secure-kora_rt' : 'kora_rt';
+    this.twoFactorName = env.COOKIE_SECURE ? '__Secure-kora_2fa' : 'kora_2fa';
   }
 
   set(res: Response, tokens: SessionTokens): void {
@@ -49,6 +55,24 @@ export class AuthCookies {
       ...this.base(),
       sameSite: 'strict',
       path: REFRESH_COOKIE_PATH,
+    });
+  }
+
+  /** Senha conferida, falta o código: guarda o desafio por 5 minutos. */
+  setTwoFactorChallenge(res: Response, challenge: string): void {
+    res.cookie(this.twoFactorName, challenge, {
+      ...this.base(),
+      sameSite: 'strict',
+      path: TWO_FACTOR_COOKIE_PATH,
+      maxAge: TWO_FACTOR_CHALLENGE_TTL_SECONDS * 1000,
+    });
+  }
+
+  clearTwoFactorChallenge(res: Response): void {
+    res.clearCookie(this.twoFactorName, {
+      ...this.base(),
+      sameSite: 'strict',
+      path: TWO_FACTOR_COOKIE_PATH,
     });
   }
 

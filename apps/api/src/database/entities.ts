@@ -1,6 +1,7 @@
 import { ApiKey } from '../modules/api-keys/api-key.entity.js';
 import { AuditLog } from '../modules/audit/audit-log.entity.js';
 import { PasswordResetToken } from '../modules/auth/password-reset-token.entity.js';
+import { RecoveryCode } from '../modules/auth/recovery-code.entity.js';
 import { RefreshToken } from '../modules/auth/refresh-token.entity.js';
 import { Charge } from '../modules/charges/charge.entity.js';
 import { Merchant } from '../modules/merchants/merchant.entity.js';
@@ -17,4 +18,5 @@ export const entities = [
   Wallet,
   Charge,
   ApiKey,
+  RecoveryCode,
 ];
