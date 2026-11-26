@@ -11,6 +11,7 @@ import { HealthController } from './health/health.controller.js';
 import { ApiKeysModule } from './modules/api-keys/api-keys.module.js';
 import { AuthModule } from './modules/auth/auth.module.js';
 import { ChargesModule } from './modules/charges/charges.module.js';
+import { DashboardModule } from './modules/dashboard/dashboard.module.js';
 import { MerchantsModule } from './modules/merchants/merchants.module.js';
 import { WalletsModule } from './modules/wallets/wallets.module.js';
 
@@ -55,6 +56,7 @@ import { WalletsModule } from './modules/wallets/wallets.module.js';
     MerchantsModule,
     WalletsModule,
     ChargesModule,
+    DashboardModule,
     ApiKeysModule,
   ],
   controllers: [HealthController],
