@@ -8,6 +8,7 @@ import {
   type ResetPasswordInput,
   type AuthResponse,
   type LoginInput,
+  type LoginResponse,
   type RegisterInput,
 } from '@kora/contracts';
 import {
@@ -135,9 +136,13 @@ export class AuthController {
     @Body(new ZodValidationPipe(loginSchema)) body: LoginInput,
     @ReqMeta() meta: RequestMeta,
     @Res({ passthrough: true }) res: Response,
-  ): Promise<AuthResponse> {
-    const { user, tokens } = await this.auth.login(body, meta);
-    this.cookies.set(res, tokens);
-    return { user };
+  ): Promise<LoginResponse> {
+    const result = await this.auth.login(body, meta);
+    if (result.kind === 'two-factor') {
+      this.cookies.setTwoFactorChallenge(res, result.challenge);
+      return { twoFactorRequired: true };
+    }
+    this.cookies.set(res, result.tokens);
+    return { user: result.user };
   }
 }

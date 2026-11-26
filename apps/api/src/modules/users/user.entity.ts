@@ -31,6 +31,25 @@ export class User {
   @Column({ name: 'locked_until', type: 'timestamptz', nullable: true })
   lockedUntil: Date | null;
 
+  /** Segredo TOTP ativo, cifrado com AES-256-GCM (`SecretBox`). */
+  @Column({ name: 'two_factor_secret', type: 'text', nullable: true })
+  twoFactorSecret: string | null;
+
+  /** Segredo gerado na configuração, antes de confirmar o primeiro código. */
+  @Column({ name: 'two_factor_pending_secret', type: 'text', nullable: true })
+  twoFactorPendingSecret: string | null;
+
+  @Column({
+    name: 'two_factor_enabled_at',
+    type: 'timestamptz',
+    nullable: true,
+  })
+  twoFactorEnabledAt: Date | null;
+
+  /** Último período TOTP aceito: o mesmo código não vale duas vezes. */
+  @Column({ name: 'two_factor_last_step', type: 'bigint', nullable: true })
+  twoFactorLastStep: string | null;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

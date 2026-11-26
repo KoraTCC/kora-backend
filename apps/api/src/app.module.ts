@@ -3,6 +3,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { LoggerModule } from 'nestjs-pino';
 import { OriginGuard } from './common/origin.guard.js';
+import { SecretBoxModule } from './common/secret-box.module.js';
 import { ConfigModule } from './config/config.module.js';
 import { ENV, type Env } from './config/env.js';
 import { DatabaseModule } from './database/database.module.js';
@@ -16,6 +17,7 @@ import { WalletsModule } from './modules/wallets/wallets.module.js';
 @Module({
   imports: [
     ConfigModule,
+    SecretBoxModule,
     LoggerModule.forRootAsync({
       inject: [ENV],
       useFactory: (env: Env) => ({

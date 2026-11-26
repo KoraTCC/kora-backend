@@ -21,6 +21,9 @@ export enum AuditEvent {
   ChargeCreated = 'CHARGE_CREATED',
   ChargeSimulated = 'CHARGE_SIMULATED',
   SessionRevoked = 'SESSION_REVOKED',
+  TwoFactorEnabled = 'TWO_FACTOR_ENABLED',
+  TwoFactorDisabled = 'TWO_FACTOR_DISABLED',
+  TwoFactorRecoveryRegenerated = 'TWO_FACTOR_RECOVERY_REGENERATED',
   ApiKeyCreated = 'API_KEY_CREATED',
   ApiKeyRevoked = 'API_KEY_REVOKED',
 }

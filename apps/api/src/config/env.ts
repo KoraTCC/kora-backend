@@ -29,6 +29,11 @@ const envSchema = z.object({
   JWT_ACCESS_SECRET: z.string().min(32),
   // Pepper das senhas: se for perdido, todas as senhas ficam inválidas.
   PASSWORD_PEPPER: z.string().min(32),
+  // Cifra (AES-256-GCM) de segredos que precisam ser lidos de volta, como o
+  // segredo do 2FA. 32 bytes em hex: `openssl rand -hex 32`.
+  DATA_ENCRYPTION_KEY: z
+    .string()
+    .regex(/^[0-9a-fA-F]{64}$/, 'use 64 caracteres hex (openssl rand -hex 32)'),
 
   ACCESS_TOKEN_TTL_SECONDS: z.coerce.number().int().positive().default(900),
   REFRESH_TOKEN_TTL_SECONDS: z.coerce

@@ -64,6 +64,8 @@ export interface UserResponse {
   name: string;
   email: string;
   createdAt: string;
+  /** 2FA (app autenticador) ativo na conta. */
+  twoFactorEnabled: boolean;
 }
 
 export interface AuthResponse {
@@ -78,3 +80,77 @@ export const resetPasswordSchema = z.object({
   password: passwordSchema,
 });
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+
+/** Login com 2FA ativo: a senha confere, mas falta o código do app. */
+export interface TwoFactorRequiredResponse {
+  twoFactorRequired: true;
+}
+export type LoginResponse = AuthResponse | TwoFactorRequiredResponse;
+
+export const TWO_FACTOR_CODE_LENGTH = 6;
+export const RECOVERY_CODES_COUNT = 10;
+
+/** `ABCD 2345` / `abcd2345` → `abcd-2345`. */
+export function normalizeRecoveryCode(input: string): string {
+  const clean = input.toLowerCase().replace(/[\s-]/g, '');
+  return clean.length === 8 ? `${clean.slice(0, 4)}-${clean.slice(4)}` : clean;
+}
+
+/**
+ * Código do app autenticador (6 dígitos) **ou** código de recuperação
+ * (`xxxx-xxxx`). O backend reconhece pelo formato.
+ */
+export const twoFactorCredentialSchema = z
+  .string()
+  .trim()
+  .transform((value) =>
+    /^\d{6}$/.test(value.replace(/\s/g, ''))
+      ? value.replace(/\s/g, '')
+      : normalizeRecoveryCode(value),
+  )
+  .pipe(
+    z
+      .string()
+      .regex(
+        /^(\d{6}|[a-z2-9]{4}-[a-z2-9]{4})$/,
+        `Digite os ${TWO_FACTOR_CODE_LENGTH} dígitos do app ou um código de recuperação`,
+      ),
+  );
+
+export const twoFactorCodeSchema = z.object({
+  code: twoFactorCredentialSchema,
+});
+export type TwoFactorCodeInput = z.infer<typeof twoFactorCodeSchema>;
+
+/** Ativar exige o código do app (não vale código de recuperação). */
+export const enableTwoFactorSchema = z.object({
+  code: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, `Digite os ${TWO_FACTOR_CODE_LENGTH} dígitos do app`),
+});
+export type EnableTwoFactorInput = z.infer<typeof enableTwoFactorSchema>;
+
+export const disableTwoFactorSchema = z.object({
+  password: z.string().min(1, 'Informe a senha').max(PASSWORD_MAX_LENGTH),
+  code: twoFactorCredentialSchema,
+});
+export type DisableTwoFactorInput = z.infer<typeof disableTwoFactorSchema>;
+
+export interface TwoFactorStatusResponse {
+  enabled: boolean;
+  enabledAt: string | null;
+  recoveryCodesLeft: number;
+}
+
+export interface TwoFactorSetupResponse {
+  /** Chave em base32, para digitar no app se não der para ler o QR code. */
+  secret: string;
+  /** Conteúdo do QR code (`otpauth://totp/...`). */
+  otpauthUri: string;
+}
+
+export interface RecoveryCodesResponse {
+  /** Mostrados uma única vez. */
+  recoveryCodes: string[];
+}
