@@ -4,6 +4,7 @@ import { PasswordResetToken } from './password-reset-token.entity.js';
 import { RecoveryCode } from './recovery-code.entity.js';
 import { RefreshToken } from './refresh-token.entity.js';
 import { Charge } from './charge.entity.js';
+import { Job } from './job.entity.js';
 import { Merchant } from './merchant.entity.js';
 import { User } from './user.entity.js';
 import { Wallet } from './wallet.entity.js';
@@ -19,4 +20,5 @@ export const entities = [
   Charge,
   ApiKey,
   RecoveryCode,
+  Job,
 ];

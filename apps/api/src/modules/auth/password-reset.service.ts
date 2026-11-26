@@ -67,10 +67,13 @@ export class PasswordResetService {
         {},
         manager,
       );
+      // Na mesma transação: o e-mail só sai se o token foi gravado.
+      const link = `${this.appUrl}/reset-password?token=${token}`;
+      await this.mail.queue(
+        passwordResetEmail(user.email, user.name, link),
+        manager,
+      );
     });
-
-    const link = `${this.appUrl}/reset-password?token=${token}`;
-    this.mail.sendInBackground(passwordResetEmail(user.email, user.name, link));
   }
 
   async reset(input: ResetPasswordInput, meta: RequestMeta): Promise<void> {
@@ -110,14 +113,14 @@ export class PasswordResetService {
         {},
         manager,
       );
+      await this.mail.queue(
+        passwordChangedEmail(
+          user.email,
+          user.name,
+          `${this.appUrl}/forgot-password`,
+        ),
+        manager,
+      );
     });
-
-    this.mail.sendInBackground(
-      passwordChangedEmail(
-        user.email,
-        user.name,
-        `${this.appUrl}/forgot-password`,
-      ),
-    );
   }
 }
