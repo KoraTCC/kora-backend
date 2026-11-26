@@ -16,6 +16,7 @@ Commits seguem [Conventional Commits](https://www.conventionalcommits.org/pt-br/
 
 ```
 apps/api/            API NestJS (TypeORM + PostgreSQL)
+apps/worker/         Trabalho em segundo plano: fila de jobs e tarefas periódicas (ver docs/worker.md)
 packages/contracts/  Schemas zod e tipos compartilhados com o frontend
 packages/database/   Entidades, migrations e configuração do TypeORM (compartilhado entre os apps)
 infra/docker/        docker-compose de desenvolvimento e de produção (sem proxy: o Nginx é da VPS)

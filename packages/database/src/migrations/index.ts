@@ -3,6 +3,7 @@ import { CreateMerchantsWalletsCharges1793189692584 } from './1793189692584-Crea
 import { CreatePasswordResetTokens1793190854375 } from './1793190854375-CreatePasswordResetTokens.js';
 import { CreateApiKeysAndBillingSettings1793195124287 } from './1793195124287-CreateApiKeysAndBillingSettings.js';
 import { AddTwoFactorAuth1795700724195 } from './1795700724195-AddTwoFactorAuth.js';
+import { CreateJobs1795703444369 } from './1795703444369-CreateJobs.js';
 
 // Registro explícito das migrations, em ordem de criação.
 export const migrations = [
@@ -11,4 +12,5 @@ export const migrations = [
   CreatePasswordResetTokens1793190854375,
   CreateApiKeysAndBillingSettings1793195124287,
   AddTwoFactorAuth1795700724195,
+  CreateJobs1795703444369,
 ];

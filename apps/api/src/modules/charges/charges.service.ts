@@ -111,8 +111,6 @@ export class ChargesService {
     merchant: Merchant,
     query: ListChargesQuery,
   ): Promise<ChargePageResponse> {
-    await this.expireOverdue(merchant);
-
     const qb = this.charges
       .createQueryBuilder('c')
       .where('c.merchant_id = :merchantId', { merchantId: merchant.id });
@@ -153,12 +151,10 @@ export class ChargesService {
   }
 
   async get(merchant: Merchant, id: string): Promise<ChargeDetailResponse> {
-    await this.expireOverdue(merchant);
     return toChargeDetailResponse(await this.findOwned(merchant, id));
   }
 
   async stats(merchant: Merchant): Promise<ChargeStatsResponse> {
-    await this.expireOverdue(merchant);
     const counts = await this.countByStatus(merchant);
     const total = Object.values(counts).reduce((a, b) => a + b, 0);
 
@@ -230,8 +226,6 @@ export class ChargesService {
     if (merchant.environment !== 'test') {
       throw new ConflictException('Simulação disponível apenas em modo teste.');
     }
-    await this.expireOverdue(merchant);
-
     await this.dataSource.transaction(async (manager) => {
       const repo = manager.getRepository(Charge);
       // Lock: duas simulações simultâneas não processam a mesma cobrança.
@@ -244,6 +238,14 @@ export class ChargesService {
         throw new ConflictException(
           'Só é possível simular cobranças pendentes ou detectadas.',
         );
+      }
+      // O worker expira as cobranças a cada ~30 s; até lá, uma pendente com
+      // o prazo vencido continua `pending` no banco, mas não pode ser paga.
+      if (
+        charge.status === 'pending' &&
+        charge.expiresAt.getTime() <= Date.now()
+      ) {
+        throw new ConflictException('O prazo desta cobrança já venceu.');
       }
 
       const now = new Date();
@@ -296,11 +298,6 @@ export class ChargesService {
    * impossível de adivinhar) pode ver a cobrança, como em qualquer gateway.
    */
   async getPublicCheckout(id: string): Promise<CheckoutResponse> {
-    await this.dataSource.query(
-      `UPDATE charges SET status = 'expired', updated_at = now()
-        WHERE id = $1 AND status = 'pending' AND expires_at < now()`,
-      [id],
-    );
     const charge = await this.charges.findOne({
       where: { id },
       relations: { merchant: true },
@@ -329,18 +326,6 @@ export class ChargesService {
     const counts = emptyCounts();
     for (const row of rows) counts[row.status] = row.count;
     return counts;
-  }
-
-  /**
-   * Expiração preguiçosa: sem um worker ainda (MVP 3), as cobranças vencidas
-   * são marcadas como expiradas antes de cada leitura.
-   */
-  private async expireOverdue(merchant: Merchant): Promise<void> {
-    await this.dataSource.query(
-      `UPDATE charges SET status = 'expired', updated_at = now()
-        WHERE merchant_id = $1 AND status = 'pending' AND expires_at < now()`,
-      [merchant.id],
-    );
   }
 }
 

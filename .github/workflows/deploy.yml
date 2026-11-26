@@ -16,9 +16,6 @@ concurrency:
 permissions:
   contents: read
 
-env:
-  IMAGE: ghcr.io/koratcc/kora-api
-
 jobs:
   image:
     if: >-
@@ -29,8 +26,12 @@ jobs:
     permissions:
       contents: read
       packages: write
-    outputs:
-      sha: ${{ steps.sha.outputs.sha }}
+    # Uma imagem por app do monorepo, publicadas em paralelo.
+    strategy:
+      matrix:
+        app: [api, worker]
+    env:
+      IMAGE: ghcr.io/koratcc/kora-${{ matrix.app }}
     steps:
       - id: sha
         run: echo "sha=${{ github.event.workflow_run.head_sha || github.sha }}" >> "$GITHUB_OUTPUT"
@@ -43,18 +44,19 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Build e publicação da imagem
+      - name: Build e publicação da imagem (${{ matrix.app }})
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/api/Dockerfile
+          file: Dockerfile
+          build-args: APP=${{ matrix.app }}
           push: true
           # `latest` é o que a VPS sobe; a tag do commit serve para rollback.
           tags: |
             ${{ env.IMAGE }}:latest
             ${{ env.IMAGE }}:${{ steps.sha.outputs.sha }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
 
   vps:
     needs: image

@@ -208,7 +208,7 @@ describe('Cobranças (e2e)', () => {
     expect(merchant.plan.chargesUsed).toBe(3);
   });
 
-  it('expira cobranças vencidas na leitura', async () => {
+  it('não simula pagamento de cobrança vencida (a expiração é do worker)', async () => {
     const { api, walletId } = await merchantWithWallet(app);
     const id = await createCharge(api, walletId);
     await db.query(
@@ -216,8 +216,9 @@ describe('Cobranças (e2e)', () => {
       [id],
     );
 
+    // A API só lê: quem marca `expired` é o apps/worker (a cada ~30 s).
     const { body } = await api.get(`/charges/${id}`).expect(200);
-    expect(body.status).toBe('expired');
+    expect(body.status).toBe('pending');
     await api
       .post(`/charges/${id}/simulate`, { outcome: 'confirmed' })
       .expect(409);

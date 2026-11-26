@@ -99,7 +99,7 @@ push na main ─▶ CI ─▶ workflow Deploy ─▶ imagem no GHCR (latest + sh
 ```
 
 - O workflow `.github/workflows/deploy.yml` só roda depois que o **CI passou** num push na `main`. Ele também tem o botão "Run workflow" para refazer um deploy.
-- A imagem é construída no GitHub e publicada em `ghcr.io/koratcc/kora-api`. A VPS só baixa e troca o container, sem buildar com 1 vCPU.
+- As imagens são construídas no GitHub e publicadas em `ghcr.io/koratcc/kora-api` e `ghcr.io/koratcc/kora-worker` (um único `Dockerfile` na raiz, com `--build-arg APP=api|worker`). A VPS só baixa e troca os containers, sem buildar com 1 vCPU.
 - A chave SSH do GitHub **só consegue rodar o deploy**: `command=` no `authorized_keys` força o comando, e o que o GitHub enviar é ignorado. Ela não abre terminal nem faz túnel.
 - O job `vps` usa o environment `production`. Em Settings → Environments → production → *Required reviewers*, dá para exigir aprovação antes de cada deploy.
 
@@ -129,7 +129,7 @@ chmod 600 ~/.ssh/authorized_keys
 deploy-image: ## Atualiza o código e sobe a imagem já publicada no GHCR
 	git -C $(BACKEND_DIR) checkout main
 	git -C $(BACKEND_DIR) pull --ff-only
-	$(COMPOSE) pull api migrate
+	$(COMPOSE) pull api migrate worker
 	$(COMPOSE) up -d --wait
 	@$(MAKE) --no-print-directory health
 	docker image prune -f
@@ -147,7 +147,7 @@ O `git pull` continua porque o compose e o `.env.example` moram no repositório.
 
 Depois, apague o `kora_deploy` da sua máquina: a chave privada só precisa existir no GitHub.
 
-**6. Imagem pública no GHCR.** Depois do primeiro deploy, abra o pacote `kora-api` (organização KoraTCC → Packages) → *Package settings* → *Change visibility* → **Public**. Assim a VPS baixa a imagem sem login. O repositório já é público, então isso não expõe nada novo.
+**6. Imagens públicas no GHCR.** Depois do primeiro deploy, abra os pacotes `kora-api` **e** `kora-worker` (organização KoraTCC → Packages) → *Package settings* → *Change visibility* → **Public**. Assim a VPS baixa a imagem sem login. O repositório já é público, então isso não expõe nada novo.
 
 ### Rollback
 
