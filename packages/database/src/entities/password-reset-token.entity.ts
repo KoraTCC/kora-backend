@@ -7,7 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { User } from '../users/user.entity.js';
+import { User } from './user.entity.js';
 
 /** Token de "esqueceu a senha": uso único, curta duração, só o hash no banco. */
 @Entity({ name: 'password_reset_tokens' })

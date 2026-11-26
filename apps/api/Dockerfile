@@ -9,11 +9,13 @@ FROM base AS build
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY apps/api/package.json apps/api/
 COPY packages/contracts/package.json packages/contracts/
+COPY packages/database/package.json packages/database/
 RUN pnpm install --frozen-lockfile
 COPY tsconfig.base.json ./
 COPY packages/contracts packages/contracts
+COPY packages/database packages/database
 COPY apps/api apps/api
-RUN pnpm --filter @kora/api build \
+RUN pnpm --filter "@kora/api..." build \
  && pnpm --filter @kora/api deploy --prod /out
 
 FROM node:24-alpine AS runtime

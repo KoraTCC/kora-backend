@@ -1,5 +1,5 @@
 import type { UserResponse } from '@kora/contracts';
-import type { User } from './user.entity.js';
+import type { User } from '@kora/database';
 
 /** Única forma de expor um usuário na API: nunca vaza hash ou contadores. */
 export function toUserResponse(user: User): UserResponse {

@@ -1,5 +1,5 @@
 import type { MerchantResponse } from '@kora/contracts';
-import type { Merchant } from './merchant.entity.js';
+import type { Merchant } from '@kora/database';
 
 /** Limites do plano de demonstração (ainda não há cobrança de assinatura). */
 const PLAN = {

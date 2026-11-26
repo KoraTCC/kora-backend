@@ -20,17 +20,15 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { randomBytes, randomInt } from 'node:crypto';
 import { Brackets, DataSource, type Repository } from 'typeorm';
 import type { RequestMeta } from '../../common/request-meta.js';
-import { AuditEvent } from '../audit/audit-log.entity.js';
 import { AuditService } from '../audit/audit.service.js';
-import type { Merchant } from '../merchants/merchant.entity.js';
 import { WalletsService } from '../wallets/wallets.service.js';
-import { Charge } from './charge.entity.js';
 import {
   toChargeDetailResponse,
   toChargeResponse,
   toCheckoutResponse,
 } from './charge.mapper.js';
 import { DEMO_RATES_CENTS, halfOf, quoteCryptoAmount } from './quote.js';
+import { AuditEvent, Charge, type Merchant } from '@kora/database';
 
 function invalidField(path: string, message: string): BadRequestException {
   return new BadRequestException({

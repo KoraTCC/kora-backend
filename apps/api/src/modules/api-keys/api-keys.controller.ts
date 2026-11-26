@@ -21,8 +21,8 @@ import { ReqMeta, type RequestMeta } from '../../common/request-meta.js';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe.js';
 import { AccessTokenGuard, CurrentUser } from '../auth/access-token.guard.js';
 import { MerchantsService } from '../merchants/merchants.service.js';
-import type { User } from '../users/user.entity.js';
 import { ApiKeysService } from './api-keys.service.js';
+import type { User } from '@kora/database';
 
 @Controller('api-keys')
 @UseGuards(AccessTokenGuard)

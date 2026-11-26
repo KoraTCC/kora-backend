@@ -5,8 +5,7 @@ import type {
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { Repository } from 'typeorm';
-import type { User } from '../users/user.entity.js';
-import { Merchant } from './merchant.entity.js';
+import { Merchant, type User } from '@kora/database';
 
 @Injectable()
 export class MerchantsService {

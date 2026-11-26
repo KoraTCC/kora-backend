@@ -10,14 +10,12 @@ import { AuthCookies } from './auth-cookies.service.js';
 import { AuthController } from './auth.controller.js';
 import { AuthService } from './auth.service.js';
 import { PasswordHasher } from './password-hasher.service.js';
-import { PasswordResetToken } from './password-reset-token.entity.js';
 import { PasswordResetService } from './password-reset.service.js';
-import { RecoveryCode } from './recovery-code.entity.js';
-import { RefreshToken } from './refresh-token.entity.js';
 import { TwoFactorController } from './two-factor.controller.js';
 import { TwoFactorService } from './two-factor.service.js';
 import { SessionService } from './session.service.js';
 import { SessionsController } from './sessions.controller.js';
+import { PasswordResetToken, RecoveryCode, RefreshToken } from '@kora/database';
 
 @Module({
   imports: [

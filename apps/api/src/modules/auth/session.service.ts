@@ -11,7 +11,7 @@ import {
 } from 'typeorm';
 import type { RequestMeta } from '../../common/request-meta.js';
 import { ENV, type Env } from '../../config/env.js';
-import { RefreshToken } from './refresh-token.entity.js';
+import { RefreshToken } from '@kora/database';
 
 export const JWT_ISSUER = 'kora-api';
 export const JWT_AUDIENCE = 'kora-web';

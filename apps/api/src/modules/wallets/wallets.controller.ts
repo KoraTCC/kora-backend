@@ -21,8 +21,8 @@ import {
 import { ZodValidationPipe } from '../../common/zod-validation.pipe.js';
 import { AccessTokenGuard, CurrentUser } from '../auth/access-token.guard.js';
 import { MerchantsService } from '../merchants/merchants.service.js';
-import type { User } from '../users/user.entity.js';
 import { WalletsService } from './wallets.service.js';
+import type { User } from '@kora/database';
 
 @Controller()
 @UseGuards(AccessTokenGuard)
