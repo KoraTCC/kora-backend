@@ -9,7 +9,7 @@ import {
 } from '@kora/contracts';
 import { Injectable } from '@nestjs/common';
 import { DataSource } from 'typeorm';
-import type { Merchant } from '../merchants/merchant.entity.js';
+import type { Merchant } from '@kora/database';
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
