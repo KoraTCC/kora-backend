@@ -26,11 +26,11 @@ import type { Request, Response } from 'express';
 import { ReqMeta, type RequestMeta } from '../../common/request-meta.js';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe.js';
 import { toUserResponse } from '../users/user.mapper.js';
-import type { User } from '../users/user.entity.js';
 import { AccessTokenGuard, CurrentUser } from './access-token.guard.js';
 import { AuthCookies } from './auth-cookies.service.js';
 import { AuthService, SupersededRefreshError } from './auth.service.js';
 import { PasswordResetService } from './password-reset.service.js';
+import type { User } from '@kora/database';
 
 @Controller('auth')
 export class AuthController {

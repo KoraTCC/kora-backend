@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ENV, type Env } from '../config/env.js';
-import { buildDataSourceOptions } from './options.js';
+import { buildDataSourceOptions } from '@kora/database';
 
 @Module({
   imports: [

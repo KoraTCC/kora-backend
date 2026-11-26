@@ -6,9 +6,7 @@ import {
 } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import type { RequestMeta } from '../../common/request-meta.js';
-import { AuditEvent } from '../audit/audit-log.entity.js';
 import { AuditService } from '../audit/audit.service.js';
-import type { User } from '../users/user.entity.js';
 import { toUserResponse } from '../users/user.mapper.js';
 import { UsersService } from '../users/users.service.js';
 import { PasswordHasher } from './password-hasher.service.js';
@@ -18,6 +16,7 @@ import {
   TwoFactorService,
   type TwoFactorMethod,
 } from './two-factor.service.js';
+import { AuditEvent, type User } from '@kora/database';
 
 const INVALID_SESSION = 'Sessão expirada ou inválida.';
 

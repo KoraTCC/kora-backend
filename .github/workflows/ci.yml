@@ -56,4 +56,6 @@ jobs:
           docker compose -f infra/docker/docker-compose.prod.yml --env-file infra/docker/.env config --format json \
             | jq -e '[.services[].ports // [] | .[] | select(.host_ip != "127.0.0.1")] | length == 0'
       - name: Build da imagem da API
-        run: docker build -f apps/api/Dockerfile -t kora-api:ci .
+        run: docker build --build-arg APP=api -t kora-api:ci .
+      - name: Build da imagem do worker
+        run: docker build --build-arg APP=worker -t kora-worker:ci .

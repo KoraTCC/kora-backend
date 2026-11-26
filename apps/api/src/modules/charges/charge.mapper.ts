@@ -3,9 +3,8 @@ import type {
   ChargeResponse,
   CheckoutResponse,
 } from '@kora/contracts';
-import type { Merchant } from '../merchants/merchant.entity.js';
-import type { Charge } from './charge.entity.js';
 import { toNetworkDecimals } from './quote.js';
+import type { Charge, Merchant } from '@kora/database';
 
 export function toChargeResponse(charge: Charge): ChargeResponse {
   return {

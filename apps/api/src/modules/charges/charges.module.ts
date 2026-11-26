@@ -4,10 +4,10 @@ import { AuditModule } from '../audit/audit.module.js';
 import { AuthModule } from '../auth/auth.module.js';
 import { MerchantsModule } from '../merchants/merchants.module.js';
 import { WalletsModule } from '../wallets/wallets.module.js';
-import { Charge } from './charge.entity.js';
 import { ChargesController } from './charges.controller.js';
 import { ChargesService } from './charges.service.js';
 import { CheckoutController } from './checkout.controller.js';
+import { Charge } from '@kora/database';
 
 @Module({
   imports: [

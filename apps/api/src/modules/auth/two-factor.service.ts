@@ -13,19 +13,17 @@ import { randomInt } from 'node:crypto';
 import { DataSource, IsNull, type EntityManager } from 'typeorm';
 import type { RequestMeta } from '../../common/request-meta.js';
 import { SecretBox } from '../../common/secret-box.js';
-import { AuditEvent } from '../audit/audit-log.entity.js';
 import { AuditService } from '../audit/audit.service.js';
 import { MailService } from '../mail/mail.service.js';
-import { User } from '../users/user.entity.js';
 import { TWO_FACTOR_CHALLENGE_TTL_SECONDS } from './auth-cookies.service.js';
 import { PasswordHasher } from './password-hasher.service.js';
-import { RecoveryCode } from './recovery-code.entity.js';
 import { hashToken, JWT_ISSUER } from './session.service.js';
 import {
   twoFactorDisabledEmail,
   twoFactorEnabledEmail,
 } from './two-factor.emails.js';
 import { generateTotpSecret, otpauthUri, verifyTotp } from './totp.js';
+import { AuditEvent, RecoveryCode, User } from '@kora/database';
 
 /** Audiência própria: um desafio de 2FA nunca serve como access token. */
 const CHALLENGE_AUDIENCE = 'kora-2fa';
@@ -199,9 +197,12 @@ export class TwoFactorService {
         {},
         manager,
       );
+      await this.mail.queue(
+        twoFactorEnabledEmail(user.email, user.name),
+        manager,
+      );
       return recoveryCodes;
     });
-    this.mail.sendInBackground(twoFactorEnabledEmail(user.email, user.name));
     return codes;
   }
 
@@ -234,8 +235,11 @@ export class TwoFactorService {
         {},
         manager,
       );
+      await this.mail.queue(
+        twoFactorDisabledEmail(user.email, user.name),
+        manager,
+      );
     });
-    this.mail.sendInBackground(twoFactorDisabledEmail(user.email, user.name));
   }
 
   async regenerateRecoveryCodes(

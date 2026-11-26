@@ -7,7 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { User } from '../users/user.entity.js';
+import { User } from './user.entity.js';
 
 export enum AuditEvent {
   Register = 'REGISTER',

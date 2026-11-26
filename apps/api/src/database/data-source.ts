@@ -2,6 +2,6 @@
 import 'reflect-metadata';
 import { DataSource } from 'typeorm';
 import { loadEnv } from '../config/env.js';
-import { buildDataSourceOptions } from './options.js';
+import { buildDataSourceOptions } from '@kora/database';
 
 export default new DataSource(buildDataSourceOptions(loadEnv().DATABASE_URL));

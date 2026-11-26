@@ -16,7 +16,9 @@ Commits seguem [Conventional Commits](https://www.conventionalcommits.org/pt-br/
 
 ```
 apps/api/            API NestJS (TypeORM + PostgreSQL)
+apps/worker/         Trabalho em segundo plano: fila de jobs e tarefas periódicas (ver docs/worker.md)
 packages/contracts/  Schemas zod e tipos compartilhados com o frontend
+packages/database/   Entidades, migrations e configuração do TypeORM (compartilhado entre os apps)
 infra/docker/        docker-compose de desenvolvimento e de produção (sem proxy: o Nginx é da VPS)
 docs/                Arquitetura e guia de deploy
 ```
@@ -35,7 +37,7 @@ pnpm --filter @kora/api start:dev                               # http://localho
 
 - Mailpit (e-mails de desenvolvimento): http://localhost:8025
 - Testes: `pnpm test` (unitários) e `pnpm test:e2e` (usam o banco `kora_test` do compose de dev)
-- Nova migration: `pnpm --filter @kora/api migration:generate src/database/migrations/<Nome>`. Depois registre a classe em `src/database/migrations/index.ts`.
+- Nova migration: `pnpm --filter @kora/api migration:generate ../../packages/database/src/migrations/<Nome>`. Depois registre a classe em `packages/database/src/migrations/index.ts` (entidades e migrations ficam no pacote `@kora/database`, compartilhado entre os apps).
 
 ## Deploy
 

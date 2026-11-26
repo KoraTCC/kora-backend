@@ -5,18 +5,17 @@ import { randomBytes } from 'node:crypto';
 import { DataSource, IsNull, type Repository } from 'typeorm';
 import type { RequestMeta } from '../../common/request-meta.js';
 import { ENV, type Env } from '../../config/env.js';
-import { AuditEvent } from '../audit/audit-log.entity.js';
 import { AuditService } from '../audit/audit.service.js';
 import { MailService } from '../mail/mail.service.js';
 import { UsersService } from '../users/users.service.js';
 import { PasswordHasher } from './password-hasher.service.js';
 import { checkPasswordPolicy } from './password-policy.js';
-import { PasswordResetToken } from './password-reset-token.entity.js';
 import { hashToken, SessionService } from './session.service.js';
 import {
   passwordChangedEmail,
   passwordResetEmail,
 } from './password-reset.emails.js';
+import { AuditEvent, PasswordResetToken } from '@kora/database';
 
 export const RESET_TOKEN_TTL_MS = 30 * 60 * 1000;
 const INVALID_LINK = 'Link inválido ou expirado. Peça um novo.';
@@ -68,10 +67,13 @@ export class PasswordResetService {
         {},
         manager,
       );
+      // Na mesma transação: o e-mail só sai se o token foi gravado.
+      const link = `${this.appUrl}/reset-password?token=${token}`;
+      await this.mail.queue(
+        passwordResetEmail(user.email, user.name, link),
+        manager,
+      );
     });
-
-    const link = `${this.appUrl}/reset-password?token=${token}`;
-    this.mail.sendInBackground(passwordResetEmail(user.email, user.name, link));
   }
 
   async reset(input: ResetPasswordInput, meta: RequestMeta): Promise<void> {
@@ -111,14 +113,14 @@ export class PasswordResetService {
         {},
         manager,
       );
+      await this.mail.queue(
+        passwordChangedEmail(
+          user.email,
+          user.name,
+          `${this.appUrl}/forgot-password`,
+        ),
+        manager,
+      );
     });
-
-    this.mail.sendInBackground(
-      passwordChangedEmail(
-        user.email,
-        user.name,
-        `${this.appUrl}/forgot-password`,
-      ),
-    );
   }
 }
