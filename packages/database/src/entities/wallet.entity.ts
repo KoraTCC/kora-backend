@@ -8,7 +8,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { Merchant } from '../merchants/merchant.entity.js';
+import { Merchant } from './merchant.entity.js';
 
 /** Endereço que recebe os pagamentos de um merchant numa rede. */
 @Entity({ name: 'wallets' })

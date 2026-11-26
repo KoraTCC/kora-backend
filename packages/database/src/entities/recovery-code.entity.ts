@@ -7,7 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { User } from '../users/user.entity.js';
+import { User } from './user.entity.js';
 
 /** Código de recuperação do 2FA: uso único, só o SHA-256 no banco. */
 @Entity({ name: 'two_factor_recovery_codes' })

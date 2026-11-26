@@ -1,12 +1,8 @@
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
 import { DataSource } from 'typeorm';
-import type { MockInstance } from 'vitest';
 import { hashToken } from '../src/modules/auth/session.service.js';
-import {
-  MailService,
-  type MailMessage,
-} from '../src/modules/mail/mail.service.js';
+import type { MailMessage } from '../src/modules/mail/mail.service.js';
 import { createTestApp, uniqueIp } from './app.js';
 import { ORIGIN } from './session.js';
 
@@ -16,7 +12,6 @@ const NEW_PASSWORD = 'outra frase longa e segura';
 describe('Esqueceu a senha (e2e)', () => {
   let app: INestApplication;
   let db: DataSource;
-  let sendMail: MockInstance<(message: MailMessage) => Promise<void>>;
   let counter = 0;
 
   const post = (path: string, body?: object, cookie?: string) => {
@@ -43,11 +38,21 @@ describe('Esqueceu a senha (e2e)', () => {
     return { email, cookie };
   }
 
-  /** Pede o reset e devolve o token do link enviado por e-mail. */
+  /** E-mails enfileirados (a API não envia: grava jobs para o worker). */
+  async function queuedEmails(to: string): Promise<MailMessage[]> {
+    const rows: Array<{ payload: MailMessage }> = await db.query(
+      `SELECT payload FROM jobs
+        WHERE type = 'send_email' AND payload->>'to' = $1
+        ORDER BY created_at, id`,
+      [to],
+    );
+    return rows.map((row) => row.payload);
+  }
+
+  /** Pede o reset e devolve o token do link do e-mail enfileirado. */
   async function requestReset(email: string): Promise<string> {
-    sendMail.mockClear();
     await post('/auth/password/forgot', { email }).expect(202, { ok: true });
-    const message = sendMail.mock.calls.at(-1)?.[0];
+    const message = (await queuedEmails(email)).at(-1);
     expect(message?.to).toBe(email);
     const link = /https?:\/\/\S+\/reset-password\?token=([\w-]+)/.exec(
       message!.text,
@@ -58,7 +63,6 @@ describe('Esqueceu a senha (e2e)', () => {
   beforeAll(async () => {
     app = await createTestApp();
     db = app.get(DataSource);
-    sendMail = vi.spyOn(app.get(MailService), 'send').mockResolvedValue();
   });
 
   afterAll(async () => {
@@ -66,18 +70,23 @@ describe('Esqueceu a senha (e2e)', () => {
   });
 
   it('e-mail desconhecido recebe a mesma resposta e nada é enviado', async () => {
-    sendMail.mockClear();
     await post('/auth/password/forgot', {
       email: 'ninguem@example.com',
     }).expect(202, {
       ok: true,
     });
-    expect(sendMail).not.toHaveBeenCalled();
+    expect(await queuedEmails('ninguem@example.com')).toEqual([]);
   });
 
-  it('envia o link e guarda só o hash do token', async () => {
+  it('enfileira o link e guarda só o hash do token', async () => {
     const { email } = await account();
     const token = await requestReset(email);
+    // Um job pendente para o worker, com o link montado pela API.
+    const jobs = await db.query(
+      `SELECT status FROM jobs WHERE type = 'send_email' AND payload->>'to' = $1`,
+      [email],
+    );
+    expect(jobs).toEqual([{ status: 'pending' }]);
 
     expect(token.length).toBeGreaterThanOrEqual(43);
     const rows = await db.query(
@@ -95,7 +104,6 @@ describe('Esqueceu a senha (e2e)', () => {
     const token = await requestReset(email);
     // `iat` do JWT tem precisão de segundos: garante que a troca seja depois.
     await new Promise((resolve) => setTimeout(resolve, 1100));
-    sendMail.mockClear();
 
     await post('/auth/password/reset', {
       token,
@@ -105,7 +113,9 @@ describe('Esqueceu a senha (e2e)', () => {
     });
 
     // Aviso de senha alterada.
-    expect(sendMail.mock.calls[0]?.[0].subject).toMatch(/senha.*alterada/i);
+    const emails = await queuedEmails(email);
+    expect(emails).toHaveLength(2);
+    expect(emails[1]!.subject).toMatch(/senha.*alterada/i);
     // Senha antiga não entra mais; a nova entra.
     await post('/auth/login', { email, password: PASSWORD }).expect(401);
     await post('/auth/login', { email, password: NEW_PASSWORD }).expect(200);

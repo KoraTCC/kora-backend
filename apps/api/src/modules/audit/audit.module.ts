@@ -1,7 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { AuditLog } from './audit-log.entity.js';
 import { AuditService } from './audit.service.js';
+import { AuditLog } from '@kora/database';
 
 @Module({
   imports: [TypeOrmModule.forFeature([AuditLog])],

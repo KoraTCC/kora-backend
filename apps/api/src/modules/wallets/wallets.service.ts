@@ -12,8 +12,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, QueryFailedError, type Repository } from 'typeorm';
-import type { Merchant } from '../merchants/merchant.entity.js';
-import { Wallet } from './wallet.entity.js';
+import { Wallet, type Merchant } from '@kora/database';
 
 const UNIQUE_VIOLATION = '23505';
 const FOREIGN_KEY_VIOLATION = '23503';

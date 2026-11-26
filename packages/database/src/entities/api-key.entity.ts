@@ -7,7 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { Merchant } from '../merchants/merchant.entity.js';
+import { Merchant } from './merchant.entity.js';
 
 @Entity({ name: 'api_keys' })
 export class ApiKey {

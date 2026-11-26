@@ -14,8 +14,8 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { Merchant } from '../merchants/merchant.entity.js';
-import { Wallet } from '../wallets/wallet.entity.js';
+import { Merchant } from './merchant.entity.js';
+import { Wallet } from './wallet.entity.js';
 
 @Entity({ name: 'charges' })
 @Index(['merchantId', 'createdAt'])

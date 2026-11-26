@@ -1,7 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { QueryFailedError, type EntityManager, type Repository } from 'typeorm';
-import { User } from './user.entity.js';
+import { User } from '@kora/database';
 
 const UNIQUE_VIOLATION = '23505';
 

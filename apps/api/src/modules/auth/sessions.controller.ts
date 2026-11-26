@@ -9,9 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { ReqMeta, type RequestMeta } from '../../common/request-meta.js';
-import { AuditEvent } from '../audit/audit-log.entity.js';
 import { AuditService } from '../audit/audit.service.js';
-import type { User } from '../users/user.entity.js';
 import {
   AccessTokenGuard,
   CurrentSessionId,
@@ -19,6 +17,7 @@ import {
 } from './access-token.guard.js';
 import { describeDevice } from './describe-device.js';
 import { SessionService } from './session.service.js';
+import { AuditEvent, type User } from '@kora/database';
 
 /** Sem geolocalização por IP por enquanto: não inventamos uma cidade. */
 const UNKNOWN_LOCATION = 'Local não identificado';

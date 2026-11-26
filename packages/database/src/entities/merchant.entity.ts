@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from '../users/user.entity.js';
+import { User } from './user.entity.js';
 
 /** Estabelecimento. Hoje cada usuário tem exatamente um. */
 @Entity({ name: 'merchants' })

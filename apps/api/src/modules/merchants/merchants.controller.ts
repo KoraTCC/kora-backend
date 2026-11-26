@@ -8,9 +8,9 @@ import { Body, Controller, Get, Patch, UseGuards } from '@nestjs/common';
 import { DataSource } from 'typeorm';
 import { ZodValidationPipe } from '../../common/zod-validation.pipe.js';
 import { AccessTokenGuard, CurrentUser } from '../auth/access-token.guard.js';
-import type { User } from '../users/user.entity.js';
 import { toMerchantResponse } from './merchant.mapper.js';
 import { MerchantsService } from './merchants.service.js';
+import type { User } from '@kora/database';
 
 @Controller('merchants')
 @UseGuards(AccessTokenGuard)

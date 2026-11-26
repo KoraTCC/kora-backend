@@ -2,11 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import type { EntityManager, Repository } from 'typeorm';
 import type { RequestMeta } from '../../common/request-meta.js';
-import {
-  AuditEvent,
-  AuditLog,
-  type AuditMetadata,
-} from './audit-log.entity.js';
+import { AuditEvent, AuditLog, type AuditMetadata } from '@kora/database';
 
 @Injectable()
 export class AuditService {

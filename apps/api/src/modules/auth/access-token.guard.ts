@@ -6,10 +6,10 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import type { Request } from 'express';
-import type { User } from '../users/user.entity.js';
 import { UsersService } from '../users/users.service.js';
 import { AuthCookies } from './auth-cookies.service.js';
 import { SessionService } from './session.service.js';
+import type { User } from '@kora/database';
 
 const INVALID_SESSION = 'Sessão expirada ou inválida.';
 

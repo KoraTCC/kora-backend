@@ -17,11 +17,9 @@ import {
   type Repository,
 } from 'typeorm';
 import type { RequestMeta } from '../../common/request-meta.js';
-import { AuditEvent } from '../audit/audit-log.entity.js';
 import { AuditService } from '../audit/audit.service.js';
 import { hashToken } from '../auth/session.service.js';
-import type { Merchant } from '../merchants/merchant.entity.js';
-import { ApiKey } from './api-key.entity.js';
+import { ApiKey, AuditEvent, type Merchant } from '@kora/database';
 
 function mask(key: ApiKey): string {
   return `${key.prefix}…${key.last4}`;

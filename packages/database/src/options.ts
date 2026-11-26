@@ -1,5 +1,5 @@
 import type { DataSourceOptions } from 'typeorm';
-import { entities } from './entities.js';
+import { entities } from './entities/index.js';
 import { migrations } from './migrations/index.js';
 
 export function buildDataSourceOptions(databaseUrl: string): DataSourceOptions {
