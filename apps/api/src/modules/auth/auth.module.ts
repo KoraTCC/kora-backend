@@ -12,13 +12,16 @@ import { AuthService } from './auth.service.js';
 import { PasswordHasher } from './password-hasher.service.js';
 import { PasswordResetToken } from './password-reset-token.entity.js';
 import { PasswordResetService } from './password-reset.service.js';
+import { RecoveryCode } from './recovery-code.entity.js';
 import { RefreshToken } from './refresh-token.entity.js';
+import { TwoFactorController } from './two-factor.controller.js';
+import { TwoFactorService } from './two-factor.service.js';
 import { SessionService } from './session.service.js';
 import { SessionsController } from './sessions.controller.js';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([RefreshToken, PasswordResetToken]),
+    TypeOrmModule.forFeature([RefreshToken, PasswordResetToken, RecoveryCode]),
     JwtModule.registerAsync({
       inject: [ENV],
       useFactory: (env: Env) => ({
@@ -31,7 +34,7 @@ import { SessionsController } from './sessions.controller.js';
     AuditModule,
     MailModule,
   ],
-  controllers: [AuthController, SessionsController],
+  controllers: [AuthController, SessionsController, TwoFactorController],
   providers: [
     AuthService,
     AuthCookies,
@@ -39,6 +42,7 @@ import { SessionsController } from './sessions.controller.js';
     SessionService,
     AccessTokenGuard,
     PasswordResetService,
+    TwoFactorService,
   ],
   // Outros módulos protegem rotas com @UseGuards(AccessTokenGuard); o guard
   // é instanciado no módulo de quem usa, então as dependências vão junto.

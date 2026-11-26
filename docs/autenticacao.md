@@ -151,3 +151,41 @@ O access token dura 15 min. Quando a API responde 401, o front chama esta rota u
 - A **chave publicável** (`pk_test_…`) é pública por definição e fica inteira. Ela é criada no primeiro acesso.
 - Rotacionar revoga a secreta mais recente e cria outra numa transação. Limite de 5 secretas ativas. Criação e revogação vão para a auditoria.
 - Ainda não existe autenticação de requisições por chave de API: `lastUsedAt` e `callsLast7d` ficam vazios até isso entrar.
+
+### Verificação em duas etapas (2FA): `/auth/2fa/*`
+
+**Método:** app autenticador (TOTP, RFC 6238): Google Authenticator, Authy, 1Password…
+
+- Código de 6 dígitos que muda a cada 30 s. É HMAC-SHA1 sobre o número do período, implementado com `node:crypto` e testado com os vetores oficiais da RFC 6238.
+- Funciona sem internet no celular e **não depende do e-mail**. Isso importa: o e-mail já é a porta da redefinição de senha, então um código por e-mail protegeria pouco.
+- Aceita o período atual e um de cada lado, para o relógio do celular um pouco fora de hora.
+- **Anti-replay:** a API guarda o último período aceito (`two_factor_last_step`). O mesmo código não entra duas vezes, nem dentro dos 30 s. O consumo é um `UPDATE` condicional, então duas requisições simultâneas com o mesmo código não passam juntas.
+
+**Ativação** (com o usuário logado):
+1. `POST /auth/2fa/setup` gera o segredo **pendente** e devolve a URI `otpauth://` para o QR code, mais a chave para digitar à mão. Ainda não vale para o login.
+2. `POST /auth/2fa/enable { code }`: o primeiro código prova que o app foi configurado certo. O 2FA passa a valer e a API devolve **10 códigos de recuperação**, mostrados uma única vez.
+
+**Segredo cifrado em repouso:** o segredo TOTP precisa ser lido de volta, então não dá para guardar só o hash (como fazemos com senhas e tokens).
+- Ele é gravado com **AES-256-GCM** (`common/secret-box.ts`), com IV aleatório por valor e tag de integridade.
+- A chave vem de `DATA_ENCRYPTION_KEY`, fora do banco. Se o banco vazar, os segredos não vazam.
+- **Perder essa chave** invalida o 2FA de todo mundo: guarde fora da VPS.
+
+**Login com 2FA:**
+1. Com a senha certa, `POST /auth/login` **não abre sessão** e não zera o contador de falhas. Ele devolve `{ twoFactorRequired: true }` e um cookie de desafio `__Secure-kora_2fa`:
+   - `HttpOnly`, `SameSite=Strict` e `Path=/auth/2fa`;
+   - vale 5 minutos;
+   - é um JWT com audiência própria (`kora-2fa`), então não serve como access token, e vice-versa.
+2. `POST /auth/2fa/verify { code }` aceita o código do app **ou** um código de recuperação (`xxxx-xxxx`, sem diferenciar maiúsculas, com ou sem hífen). Com o código certo, abre a sessão e grava `LOGIN_SUCCESS` com `method: 'totp' | 'recovery'`.
+3. **Código errado conta como falha de login:** 5 seguidas travam a conta por 15 min, igual à senha. Sem esse limite, 6 dígitos (1 milhão de combinações) cairiam por força bruta.
+
+**Códigos de recuperação:**
+- 10 códigos de 8 caracteres, sem letras ambíguas (`i`, `l`, `o`, `0`, `1`).
+- O banco guarda só o SHA-256. Cada código vale uma vez.
+- `POST /auth/2fa/recovery-codes { code }` gera 10 novos e invalida os antigos.
+
+**Desativar:** `POST /auth/2fa/disable { password, code }` exige **senha e código**. Quem encontrar uma sessão aberta não consegue desligar o 2FA.
+
+**Avisos e auditoria:**
+- Ativar e desativar mandam e-mail de alerta.
+- Ficam na auditoria `TWO_FACTOR_ENABLED`, `TWO_FACTOR_DISABLED` e `TWO_FACTOR_RECOVERY_REGENERATED`.
+- Redefinir a senha **não** desliga o 2FA. Sem o celular e sem os códigos, só um administrador, direto no banco, consegue liberar a conta.

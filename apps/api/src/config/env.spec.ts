@@ -5,6 +5,7 @@ const base = {
   FRONTEND_ORIGINS: 'http://localhost:5173, https://app.example.com',
   JWT_ACCESS_SECRET: 'j'.repeat(32),
   PASSWORD_PEPPER: 'p'.repeat(32),
+  DATA_ENCRYPTION_KEY: 'a'.repeat(64),
 };
 
 describe('loadEnv', () => {
