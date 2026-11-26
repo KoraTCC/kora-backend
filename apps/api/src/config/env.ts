@@ -49,6 +49,12 @@ const envSchema = z.object({
     .default(30 * 24 * 3600),
   // Endereço do frontend usado nos links dos e-mails (padrão: 1ª origem).
   APP_URL: z.url().optional(),
+  // Chave secreta do Cloudflare Turnstile (captcha de login/cadastro).
+  // Sem ela a checagem fica desligada: só deixe vazia em dev e testes.
+  TURNSTILE_SECRET_KEY: z
+    .string()
+    .optional()
+    .transform((value) => value?.trim() || undefined),
 
   // Só desligue em desenvolvimento local sem HTTPS.
   COOKIE_SECURE: z

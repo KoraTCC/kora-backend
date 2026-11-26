@@ -37,4 +37,15 @@ describe('loadEnv', () => {
       /DATABASE_URL/,
     );
   });
+
+  it('trata TURNSTILE_SECRET_KEY vazia como desligada', () => {
+    expect(loadEnv(base).TURNSTILE_SECRET_KEY).toBeUndefined();
+    expect(
+      loadEnv({ ...base, TURNSTILE_SECRET_KEY: '  ' }).TURNSTILE_SECRET_KEY,
+    ).toBeUndefined();
+    expect(
+      loadEnv({ ...base, TURNSTILE_SECRET_KEY: 'segredo' })
+        .TURNSTILE_SECRET_KEY,
+    ).toBe('segredo');
+  });
 });

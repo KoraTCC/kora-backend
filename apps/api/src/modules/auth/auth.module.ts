@@ -15,6 +15,8 @@ import { TwoFactorController } from './two-factor.controller.js';
 import { TwoFactorService } from './two-factor.service.js';
 import { SessionService } from './session.service.js';
 import { SessionsController } from './sessions.controller.js';
+import { TurnstileGuard } from './turnstile.guard.js';
+import { TurnstileService } from './turnstile.service.js';
 import { PasswordResetToken, RecoveryCode, RefreshToken } from '@kora/database';
 
 @Module({
@@ -41,6 +43,8 @@ import { PasswordResetToken, RecoveryCode, RefreshToken } from '@kora/database';
     AccessTokenGuard,
     PasswordResetService,
     TwoFactorService,
+    TurnstileService,
+    TurnstileGuard,
   ],
   // Outros módulos protegem rotas com @UseGuards(AccessTokenGuard); o guard
   // é instanciado no módulo de quem usa, então as dependências vão junto.
