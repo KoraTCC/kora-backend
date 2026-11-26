@@ -30,6 +30,7 @@ import { AccessTokenGuard, CurrentUser } from './access-token.guard.js';
 import { AuthCookies } from './auth-cookies.service.js';
 import { AuthService, SupersededRefreshError } from './auth.service.js';
 import { PasswordResetService } from './password-reset.service.js';
+import { TurnstileGuard } from './turnstile.guard.js';
 import type { User } from '@kora/database';
 
 @Controller('auth')
@@ -68,6 +69,7 @@ export class AuthController {
   }
 
   @Post('register')
+  @UseGuards(TurnstileGuard)
   @HttpCode(201)
   @Throttle({ default: { limit: 5, ttl: 60_000 } })
   async register(
@@ -130,6 +132,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @UseGuards(TurnstileGuard)
   @HttpCode(200)
   @Throttle({ default: { limit: 10, ttl: 60_000 } })
   async login(
