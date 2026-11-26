@@ -281,6 +281,19 @@ describe('Verificação em duas etapas (e2e)', () => {
     ).expect(200);
     expect((await get('/auth/2fa', session)).body.enabled).toBe(false);
 
+    // Os avisos vão para a fila na mesma transação: a tentativa com código
+    // errado foi desfeita e não deixou e-mail para trás.
+    const emails: Array<{ subject: string }> = await db.query(
+      `SELECT payload->>'subject' AS subject FROM jobs
+        WHERE type = 'send_email' AND payload->>'to' = $1
+        ORDER BY created_at, id`,
+      [email],
+    );
+    expect(emails.map((e) => e.subject)).toEqual([
+      'Verificação em duas etapas ativada na Kora',
+      'Verificação em duas etapas desativada na Kora',
+    ]);
+
     const res = await post('/auth/login', { email, password: PASSWORD }).expect(
       200,
     );

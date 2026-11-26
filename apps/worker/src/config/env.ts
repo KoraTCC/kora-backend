@@ -22,6 +22,18 @@ const envSchema = z.object({
     .int()
     .positive()
     .default(3_600_000),
+  // E-mail (SMTP). Em desenvolvimento, o padrão aponta para o Mailpit.
+  SMTP_HOST: z.string().min(1).default('localhost'),
+  SMTP_PORT: z.coerce.number().int().positive().default(1025),
+  // true = TLS direto (porta 465); false = STARTTLS quando o servidor oferecer.
+  SMTP_SECURE: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((value) => value === 'true'),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  MAIL_FROM: z.string().min(3).default('Kora <nao-responda@korapag.com>'),
+
   /** Atualizado a cada ciclo; o healthcheck do Docker olha a idade dele. */
   WORKER_HEARTBEAT_FILE: z.string().min(1).default('/tmp/worker-heartbeat'),
 });

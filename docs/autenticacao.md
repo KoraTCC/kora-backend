@@ -121,8 +121,9 @@ O access token dura 15 min. Quando a API responde 401, o front chama esta rota u
 2. Se a conta existe, numa transação:
    - invalida os links anteriores, para que só o mais recente valha;
    - gera um token de 32 bytes aleatórios e guarda **só o SHA-256** dele, com validade de **30 minutos**;
-   - grava `PASSWORD_RESET_REQUESTED` na auditoria.
-3. O e-mail com o link `APP_URL/reset-password?token=…` é enviado **em segundo plano**. Esperar o SMTP faria a resposta demorar mais quando a conta existe, o que entregaria a informação pelo tempo de resposta.
+   - grava `PASSWORD_RESET_REQUESTED` na auditoria;
+   - coloca na fila (job `send_email`) o e-mail com o link `APP_URL/reset-password?token=…`.
+3. Quem envia é o `apps/worker` (ver [worker.md](worker.md)). A API não espera o SMTP: isso faria a resposta demorar mais quando a conta existe, o que entregaria a informação pelo tempo de resposta. Como o job entra na mesma transação do token, não existe token sem e-mail nem e-mail sem token, e um SMTP fora do ar só atrasa o envio (retentativa).
 
 **Redefinição (`reset`)**
 1. Valida a nova senha (tamanho, política de senha) e gera o hash Argon2id **fora** da transação.
@@ -133,7 +134,7 @@ O access token dura 15 min. Quando a API responde 401, o front chama esta rota u
    - zera o bloqueio por tentativas;
    - **revoga todas as sessões** (refresh tokens);
    - grava `PASSWORD_RESET_COMPLETED` na auditoria.
-3. Envia um aviso de "sua senha foi alterada" e limpa os cookies do navegador.
+3. Coloca na fila, na mesma transação, o aviso de "sua senha foi alterada", e limpa os cookies do navegador.
 
 - **Rate limit:** 5 pedidos/min e 10 redefinições/min por IP.
 - **Link inválido, usado ou expirado:** `400 "Link inválido ou expirado. Peça um novo."`, sem dizer qual dos três casos aconteceu.

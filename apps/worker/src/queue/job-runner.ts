@@ -14,6 +14,22 @@ export interface ClaimedJob {
 /** Executa um tipo de job. Lançar erro = falhou, a fila tenta de novo. */
 export type JobHandler = (job: ClaimedJob) => Promise<void>;
 
+/**
+ * Handler com opções. `clearPayloadOnFinish`: ao terminar (done ou failed de
+ * vez), o payload vira `{}`. Para dados sensíveis, como o link de reset de
+ * senha, que não devem ficar parados no banco depois do uso.
+ */
+export interface JobDefinition {
+  run: JobHandler;
+  clearPayloadOnFinish?: boolean;
+}
+
+export type JobHandlers = ReadonlyMap<string, JobHandler | JobDefinition>;
+
+function toDefinition(handler: JobHandler | JobDefinition): JobDefinition {
+  return typeof handler === 'function' ? { run: handler } : handler;
+}
+
 export interface JobRunnerOptions {
   batchSize: number;
   lockSeconds: number;
@@ -41,7 +57,7 @@ function describeError(error: unknown): string {
 export class JobRunner {
   constructor(
     private readonly dataSource: DataSource,
-    private readonly handlers: ReadonlyMap<string, JobHandler>,
+    private readonly handlers: JobHandlers,
     private readonly options: JobRunnerOptions,
   ) {}
 
@@ -100,21 +116,23 @@ export class JobRunner {
   }
 
   private async process(job: ClaimedJob): Promise<void> {
-    const handler = this.handlers.get(job.type);
-    if (!handler) {
+    const registered = this.handlers.get(job.type);
+    if (!registered) {
       // Tipo desconhecido não melhora tentando de novo: falha de vez.
       await this.finish(job, 'failed', `Tipo de job desconhecido: ${job.type}`);
       this.options.onResult?.(job, 'failed');
       return;
     }
+    const handler = toDefinition(registered);
+    const clear = handler.clearPayloadOnFinish ?? false;
     try {
-      await handler(job);
-      await this.finish(job, 'done', null);
+      await handler.run(job);
+      await this.finish(job, 'done', null, clear);
       this.options.onResult?.(job, 'done');
     } catch (error) {
       const failedAttempts = job.attempts + 1;
       if (failedAttempts >= job.maxAttempts) {
-        await this.finish(job, 'failed', describeError(error));
+        await this.finish(job, 'failed', describeError(error), clear);
         this.options.onResult?.(job, 'failed', error);
       } else {
         await this.dataSource.query(
@@ -137,12 +155,14 @@ export class JobRunner {
     job: ClaimedJob,
     status: 'done' | 'failed',
     lastError: string | null,
+    clearPayload = false,
   ): Promise<void> {
     await this.dataSource.query(
       `UPDATE jobs SET status = $2, attempts = attempts + 1, last_error = $3,
+              payload = CASE WHEN $4 THEN '{}'::jsonb ELSE payload END,
               locked_until = NULL, finished_at = now(), updated_at = now()
         WHERE id = $1`,
-      [job.id, status, lastError],
+      [job.id, status, lastError, clearPayload],
     );
   }
 }

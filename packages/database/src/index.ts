@@ -12,4 +12,9 @@ export * from './entities/wallet.entity.js';
 export { entities } from './entities/index.js';
 export { migrations } from './migrations/index.js';
 export { buildDataSourceOptions } from './options.js';
-export { enqueueJob, type EnqueueOptions } from './jobs.js';
+export {
+  enqueueJob,
+  SEND_EMAIL_JOB,
+  type EnqueueOptions,
+  type SendEmailPayload,
+} from './jobs.js';

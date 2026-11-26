@@ -21,7 +21,7 @@ class ConfigModule {}
     }),
   ],
   providers: [
-    { provide: JOB_HANDLERS, useFactory: buildJobHandlers },
+    { provide: JOB_HANDLERS, inject: [ENV], useFactory: buildJobHandlers },
     WorkerService,
   ],
 })
