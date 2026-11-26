@@ -7,11 +7,14 @@ import type { DataSource } from 'typeorm';
 export async function cleanupFinishedJobs(
   dataSource: DataSource,
 ): Promise<number> {
-  const rows = await dataSource.query<Array<{ id: string }>>(
-    `DELETE FROM jobs
-      WHERE (status = 'done' AND finished_at < now() - interval '7 days')
-         OR (status = 'failed' AND finished_at < now() - interval '30 days')
-      RETURNING id`,
+  const [row] = await dataSource.query<Array<{ count: number }>>(
+    `WITH removed AS (
+       DELETE FROM jobs
+        WHERE (status = 'done' AND finished_at < now() - interval '7 days')
+           OR (status = 'failed' AND finished_at < now() - interval '30 days')
+       RETURNING id
+     )
+     SELECT count(*)::int AS count FROM removed`,
   );
-  return rows.length;
+  return row?.count ?? 0;
 }

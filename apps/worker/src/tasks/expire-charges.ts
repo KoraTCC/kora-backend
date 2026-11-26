@@ -8,10 +8,15 @@ import type { DataSource } from 'typeorm';
 export async function expireOverdueCharges(
   dataSource: DataSource,
 ): Promise<number> {
-  const rows = await dataSource.query<Array<{ id: string }>>(
-    `UPDATE charges SET status = 'expired', updated_at = now()
-      WHERE status = 'pending' AND expires_at < now()
-      RETURNING id`,
+  // `WITH … SELECT`: para UPDATE o `query()` do TypeORM devolveria
+  // `[linhas, quantidade]`; assim volta uma linha só, com a contagem.
+  const [row] = await dataSource.query<Array<{ count: number }>>(
+    `WITH expired AS (
+       UPDATE charges SET status = 'expired', updated_at = now()
+        WHERE status = 'pending' AND expires_at < now()
+       RETURNING id
+     )
+     SELECT count(*)::int AS count FROM expired`,
   );
-  return rows.length;
+  return row?.count ?? 0;
 }

@@ -56,6 +56,12 @@ export class JobRunner {
    * Reserva até `batchSize` jobs prontos. `FOR UPDATE SKIP LOCKED` faz cada
    * worker pegar linhas diferentes, sem esperar nem duplicar; `locked_until`
    * devolve o job à fila se este worker morrer no meio.
+   *
+   * Dois detalhes de SQL:
+   * - A seleção é uma CTE `MATERIALIZED`: com `IN (SELECT … LIMIT …)` o
+   *   Postgres pode reavaliar a subconsulta e reservar mais que o limite.
+   * - O `UPDATE` fica dentro de `WITH … SELECT`: para UPDATE/DELETE o
+   *   `query()` do TypeORM devolve `[linhas, quantidade]`, não só as linhas.
    */
   private async claim(): Promise<ClaimedJob[]> {
     const rows = await this.dataSource.query<
@@ -67,15 +73,21 @@ export class JobRunner {
         max_attempts: number;
       }>
     >(
-      `UPDATE jobs SET locked_until = now() + make_interval(secs => $2), updated_at = now()
-        WHERE id IN (
-          SELECT id FROM jobs
-           WHERE status = 'pending' AND run_at <= now()
-             AND (locked_until IS NULL OR locked_until < now())
-           ORDER BY run_at
-           LIMIT $1
-           FOR UPDATE SKIP LOCKED)
-        RETURNING id, type, payload, attempts, max_attempts`,
+      `WITH picked AS MATERIALIZED (
+         SELECT id FROM jobs
+          WHERE status = 'pending' AND run_at <= now()
+            AND (locked_until IS NULL OR locked_until < now())
+          ORDER BY run_at
+          LIMIT $1
+          FOR UPDATE SKIP LOCKED
+       ), claimed AS (
+         UPDATE jobs j
+            SET locked_until = now() + make_interval(secs => $2), updated_at = now()
+           FROM picked
+          WHERE j.id = picked.id
+         RETURNING j.id, j.type, j.payload, j.attempts, j.max_attempts, j.run_at
+       )
+       SELECT id, type, payload, attempts, max_attempts FROM claimed ORDER BY run_at`,
       [this.options.batchSize, this.options.lockSeconds],
     );
     return rows.map((row) => ({
