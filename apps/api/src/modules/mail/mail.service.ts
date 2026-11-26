@@ -1,46 +1,28 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
-import nodemailer, { type Transporter } from 'nodemailer';
-import { ENV, type Env } from '../../config/env.js';
+import {
+  enqueueJob,
+  SEND_EMAIL_JOB,
+  type SendEmailPayload,
+} from '@kora/database';
+import { Injectable } from '@nestjs/common';
+import { DataSource, type EntityManager } from 'typeorm';
 
-export interface MailMessage {
-  to: string;
-  subject: string;
-  text: string;
-  html: string;
-}
+export type MailMessage = SendEmailPayload;
 
+/**
+ * A API não envia e-mail: ela coloca o e-mail na fila e o `apps/worker`
+ * envia por SMTP, com retentativa. Passe o `manager` da transação para o
+ * e-mail ser gravado junto com a mudança que o gerou (padrão outbox): se a
+ * transação for desfeita, o e-mail não sai; se for gravada, com certeza sai.
+ */
 @Injectable()
 export class MailService {
-  private readonly logger = new Logger(MailService.name);
-  private readonly transporter: Transporter;
-  private readonly from: string;
+  constructor(private readonly dataSource: DataSource) {}
 
-  constructor(@Inject(ENV) env: Env) {
-    this.from = env.MAIL_FROM;
-    this.transporter = nodemailer.createTransport({
-      host: env.SMTP_HOST,
-      port: env.SMTP_PORT,
-      secure: env.SMTP_SECURE,
-      auth: env.SMTP_USER
-        ? { user: env.SMTP_USER, pass: env.SMTP_PASS ?? '' }
-        : undefined,
-    });
-  }
-
-  async send(message: MailMessage): Promise<void> {
-    await this.transporter.sendMail({ from: this.from, ...message });
-  }
-
-  /**
-   * Envia sem fazer a requisição esperar. Usado onde o tempo de resposta não
-   * pode revelar nada (ex.: "esqueceu a senha" não pode demorar mais quando
-   * o e-mail existe). Falhas vão para o log, sem o conteúdo da mensagem.
-   */
-  sendInBackground(message: MailMessage): void {
-    this.send(message).catch((error: unknown) => {
-      this.logger.error(
-        `Falha ao enviar e-mail "${message.subject}": ${String(error)}`,
-      );
-    });
+  async queue(message: MailMessage, manager?: EntityManager): Promise<void> {
+    await enqueueJob(
+      manager ?? this.dataSource.manager,
+      SEND_EMAIL_JOB,
+      message,
+    );
   }
 }

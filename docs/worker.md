@@ -30,6 +30,18 @@ Worker (loop) ── reserva ─────┘  SELECT … FOR UPDATE SKIP LOCK
 - **Tipo desconhecido** falha de vez (tentar de novo não resolve).
 - **Limpeza:** jobs `done` somem depois de 7 dias; `failed` depois de 30.
 
+## Tipos de job
+
+| Tipo | Quem enfileira | O que faz |
+|---|---|---|
+| `send_email` | API: reset de senha, senha alterada, 2FA ativado/desativado | Envia por SMTP (nodemailer) com o remetente `MAIL_FROM` |
+
+### `send_email`
+- A API não tem mais SMTP: `MailService.queue(mensagem, manager)` só grava o job, **na transação** que gerou o e-mail. Se o token de reset não for gravado, o e-mail também não é; se for, o e-mail com certeza sai.
+- O payload é a mensagem pronta (`to`, `subject`, `text`, `html`). O e-mail de reset traz o link com o token, então, quando o job termina (`done`, ou `failed` de vez), **o payload vira `{}`**: o link não fica parado no banco. Nas retentativas ele é mantido, senão não haveria o que reenviar.
+- SMTP fora do ar → retentativa com backoff. Depois de 6 falhas (cerca de 7 h), o job fica `failed`; o link de reset já teria vencido (30 min) de qualquer forma.
+- Efeito colateral aceito do "pelo menos uma vez": se o worker morrer entre o envio e o `done`, o e-mail chega duas vezes.
+
 ## Tarefas periódicas
 
 | Tarefa | Intervalo | O que faz |
@@ -53,7 +65,12 @@ Sem HTTP, o Docker não tem a quem perguntar se o worker está vivo. A cada cicl
 | `WORKER_LOCK_SECONDS` | `60` | Duração da reserva de um job |
 | `WORKER_EXPIRE_INTERVAL_MS` | `30000` | Intervalo da expiração de cobranças |
 | `WORKER_CLEANUP_INTERVAL_MS` | `3600000` | Intervalo da limpeza da fila |
+| `SMTP_HOST` / `SMTP_PORT` | `localhost` / `1025` | Servidor SMTP (o padrão é o Mailpit do compose de dev) |
+| `SMTP_SECURE` | `false` | `true` = TLS direto (465); `false` = STARTTLS (587) |
+| `SMTP_USER` / `SMTP_PASS` | (vazio) | Login SMTP (no Gmail, a senha de app) |
+| `MAIL_FROM` | `Kora <nao-responda@korapag.com>` | Remetente |
+
+Na VPS, a API e o worker leem o mesmo `infra/docker/.env`, então o `SMTP_*` continua no mesmo lugar: só quem usa mudou.
 
 ## Próximos tipos de job
-- `send_email`: os e-mails saem da API e passam pela fila, com retentativa.
 - `deliver_webhook`: avisos assinados para as lojas.

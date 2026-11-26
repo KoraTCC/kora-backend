@@ -197,9 +197,12 @@ export class TwoFactorService {
         {},
         manager,
       );
+      await this.mail.queue(
+        twoFactorEnabledEmail(user.email, user.name),
+        manager,
+      );
       return recoveryCodes;
     });
-    this.mail.sendInBackground(twoFactorEnabledEmail(user.email, user.name));
     return codes;
   }
 
@@ -232,8 +235,11 @@ export class TwoFactorService {
         {},
         manager,
       );
+      await this.mail.queue(
+        twoFactorDisabledEmail(user.email, user.name),
+        manager,
+      );
     });
-    this.mail.sendInBackground(twoFactorDisabledEmail(user.email, user.name));
   }
 
   async regenerateRecoveryCodes(

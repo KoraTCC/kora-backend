@@ -33,3 +33,14 @@ export async function enqueueJob(
   );
   return row!.id;
 }
+
+/** Tipo do job de e-mail: a API enfileira, o worker envia por SMTP. */
+export const SEND_EMAIL_JOB = 'send_email';
+
+/** Mensagem pronta (o remetente é decidido pelo worker, `MAIL_FROM`). */
+export type SendEmailPayload = {
+  to: string;
+  subject: string;
+  text: string;
+  html: string;
+};

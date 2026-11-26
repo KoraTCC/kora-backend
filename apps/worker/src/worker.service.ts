@@ -10,7 +10,7 @@ import { DataSource } from 'typeorm';
 import { ENV, type Env } from './config/env.js';
 import { beat } from './heartbeat.js';
 import { JOB_HANDLERS } from './queue/job-handlers.js';
-import { JobRunner, type JobHandler } from './queue/job-runner.js';
+import { JobRunner, type JobHandlers } from './queue/job-runner.js';
 import { cleanupFinishedJobs } from './tasks/cleanup-jobs.js';
 import { expireOverdueCharges } from './tasks/expire-charges.js';
 
@@ -40,7 +40,7 @@ export class WorkerService
   constructor(
     @Inject(ENV) private readonly env: Env,
     private readonly dataSource: DataSource,
-    @Inject(JOB_HANDLERS) handlers: Map<string, JobHandler>,
+    @Inject(JOB_HANDLERS) handlers: JobHandlers,
   ) {
     this.runner = new JobRunner(dataSource, handlers, {
       batchSize: env.WORKER_BATCH_SIZE,
